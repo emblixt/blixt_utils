@@ -7,8 +7,8 @@ from openpyxl import load_workbook, Workbook
 from copy import deepcopy
 import logging
 
-from rp_utils.utils import info
-from utils import isnan
+from rp_utils.version import info
+from blixt_utils.utils import isnan
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +116,8 @@ def get_rename_logs_dict(well_table):
     """
     rename_logs = {}
     for las_file, val in well_table.items():
+        if 'Translate log names' not in list(val.keys()):
+            continue
         if val['Translate log names'] is None:
             continue
         _dict = interpret_rename_string(val['Translate log names'])
