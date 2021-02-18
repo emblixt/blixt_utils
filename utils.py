@@ -187,7 +187,7 @@ def handle_sonic(well):
 
 def log_table_in_smallcaps(log_table):
     for key in list(log_table.keys()):
-        if isinstance(key, list):
+        if isinstance(log_table[key], list):
             print('TRUE')
             log_table[key] = [_item.lower() for _item in log_table[key]]
         else:
