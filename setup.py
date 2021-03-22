@@ -6,7 +6,7 @@ import re
 
 setup(
     name='blixt_utils',
-    packages=['blixt_utils'],
+    packages=['io', 'misc', 'plotting', 'signal_analysis'],
     #packages=find_packages(),
     version=0.1,
     url='https://github.com/emblixt/blixt_utils',
