@@ -9,7 +9,7 @@ setup(
     #packages=['io', 'misc', 'plotting', 'signal_analysis'],
     version=0.1,
     packages=find_packages(),
-    py_modules=['main', 'utils']
+    py_modules=['main', 'utils'],
     url='https://github.com/emblixt/blixt_utils',
     license='Apache 2.0',
     author='Erik Mårten Blixt',
