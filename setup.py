@@ -6,7 +6,8 @@ import re
 
 setup(
     name='blixt_utils',
-    packages=find_packages(),
+    packages=['blixt_utils'],
+    #packages=find_packages(),
     version=0.1,
     url='https://github.com/emblixt/blixt_utils',
     license='Apache 2.0',
