@@ -4,9 +4,21 @@ import re
 #with open('seismiqb/__init__.py', 'r') as f:
 #    version = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', f.read(), re.MULTILINE).group(1)
 
+verstr = 'unknown'
+VERSIONFILE = "blixt_utils/_version.py"
+with open(VERSIONFILE, "r") as f:
+    verstrline = f.read().strip()
+    pattern = re.compile(r"__version__ = ['\"](.*)['\"]")
+    mo = pattern.search(verstrline)
+if mo:
+    verstr = mo.group(1)
+    print("Version "+verstr)
+else:
+    raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
+
 setup(
-    name='blixtUtils',
-    version=0.1,
+    name='blixt_utils',
+    version=verstr,
     packages=['blixt_utils', 'blixt_utils.io', 'blixt_utils.misc', 'blixt_utils.plotting', 'blixt_utils.signal_analysis'],
     #packages=find_packages(),
     #packages=['blixt_utils'],
