@@ -158,7 +158,6 @@ def fullspec(data, sr):
     OUTPUT
     freq: frequency
     amp: amplitude
-    db: amplitude in dB scale
     f_peak: average peak frequency
     '''
     amps, peaks = [], []

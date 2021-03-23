@@ -2,8 +2,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import logging
 from matplotlib.ticker import (AutoMinorLocator, MultipleLocator)
+import matplotlib.colors as mcolors
+from itertools import cycle
 
 logger = logging.getLogger(__name__)
+
+clrs = list(mcolors.BASE_COLORS.keys())
+clrs.remove('w')
+cclrs = cycle(clrs)  # "infinite" loop of the base colors
+
+def next_color():
+    return next(cclrs)
 
 def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
     """
@@ -305,3 +314,118 @@ def set_lim(ax, limits, axis=None):
             ax.set_xlim(*limits)
         else:
             ax.set_ylim(*limits)
+
+
+def plot_ampspec(ax, freq, amp, f_peak, name=None):
+    '''
+    plot_ampspec (C) aadm 2016-2018
+    Plots amplitude spectrum calculated with mpfullspec (aageofisica.py).
+
+    INPUT
+    ax, axis object. If None, creates a new figure
+    freq: frequency
+    amp: amplitude
+    f_peak: average peak frequency
+    '''
+    db = 20 * np.log10(amp)
+    db = db - np.amax(db)
+    if ax is None:
+        f, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5), facecolor='w')
+    ax[0].plot(freq, amp, '-k', lw=2)
+    ax[0].set_ylabel('Power')
+    ax[1].plot(freq, db, '-k', lw=2)
+    ax[1].set_ylabel('Power (dB)')
+    for aa in ax:
+        aa.set_xlabel('Frequency (Hz)')
+        aa.set_xlim([0, np.amax(freq) / 1.5])
+        aa.grid()
+        aa.axvline(f_peak, color='r', ls='-')
+        if name != None:
+            aa.set_title(name, fontsize=16)
+
+
+def plot_ampspecs(ax, freq_amp_list, names=None):
+    '''Plots overlay of multiple amplitude spectras.
+
+    A variation of:
+    plot_ampspec2 (C) aadm 2016-2018
+    https://nbviewer.jupyter.org/github/aadm/geophysical_notes/blob/master/playing_with_seismic.ipynb
+    which takes a list of multiple freqency-amplitude pairs (with an optional "average peak frequency")
+
+    INPUT
+        ax, axis object. If None, creates a new figure
+
+        freq_amp_list: list of
+        [frequency (np.ndarray), amplitude spectra (np.ndarray), optional average peak frequency (float)] lists
+
+        names: list of strings, same length as freq_amp_list
+
+    '''
+    dbs = []  # list to hold dB values of the amplitude spectra
+    for _item in freq_amp_list:
+        _db = 20 * np.log10(_item[1])
+        dbs.append(_db - np.amax(_db))
+
+    one_axes = True
+    if ax is None:
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5), facecolor='w')
+        one_axes = False
+
+    labels = None
+    if names is not None:
+        if len(freq_amp_list) != len(names):
+            raise ValueError('Both input lists must have same length')
+
+        labels = []
+        for i, _name in enumerate(names):
+            _label = '{}'.format(_name)
+            if len(freq_amp_list[i]) > 2:
+                if (freq_amp_list[i][2] is not None):
+                    _label += ' Fp={:.0f} Hz'.format(freq_amp_list[i][2])
+            labels.append(_label)
+    if labels is None:
+        labels = [''] * len(freq_amp_list)
+
+    saved_colors = []
+    for i, _item in enumerate(freq_amp_list):
+        tc = next_color()
+        saved_colors.append(tc)
+        if one_axes:
+            ax.plot(_item[0], dbs[i], '-{}'.format(tc), lw=2, label=labels[i])
+        else:
+            ax[0].plot(_item[0], _item[1], '-{}'.format(tc), lw=2, label=labels[i])
+            ax[0].fill_between(_item[0], 0, _item[1], lw=0, facecolor=tc, alpha=0.25)
+            ax[1].plot(_item[0], dbs[i], '-{}'.format(tc), lw=2, label=labels[i])
+
+    if one_axes:
+        lower_limit = np.min(ax.get_ylim())
+        ax.fill_between(_item[0], dbs[i], lower_limit, lw=0, facecolor=saved_colors[i], alpha=0.25)
+        ax.set_xlabel('Frequency (Hz)')
+        ax.grid()
+        ax.set_ylabel('Power (dB)')
+        ax.legend(fontsize='small')
+
+    else:
+        lower_limit = np.min(ax[1].get_ylim())
+        for i, _item in enumerate(freq_amp_list):
+            ax[1].fill_between(_item[0], dbs[i], lower_limit, lw=0, facecolor=saved_colors[i], alpha=0.25)
+            for i, _item in enumerate(freq_amp_list):
+                if len(freq_amp_list[i]) > 2:
+                    if (freq_amp_list[i][2] is not None):
+                        ax.axvline(freq_amp_list[i][2], color=saved_colors[i], ls='-')
+
+
+        ax[0].set_ylabel('Power')
+        ax[1].set_ylabel('Power (dB)')
+        for aa in ax:
+            aa.set_xlabel('Frequency (Hz)')
+            # aa.set_xlim([0,np.amax(freq)/1.5])
+            aa.grid()
+            for i, _item in enumerate(freq_amp_list):
+                 if len(freq_amp_list[i]) > 2:
+                    if (freq_amp_list[i][2] is not None):
+                        aa.axvline(freq_amp_list[i][2], color=saved_colors[i], ls='-')
+
+            aa.legend(fontsize='small')
+
+

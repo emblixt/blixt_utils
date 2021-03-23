@@ -7,10 +7,56 @@ from openpyxl import load_workbook, Workbook
 from copy import deepcopy
 import logging
 
+import segyio
+
 from rp_utils.version import info
 from blixt_utils.utils import isnan
 
 logger = logging.getLogger(__name__)
+
+
+def read_segy(f, lag=0, twod=False, byte_il=189, byte_xl=193):
+    '''
+    read_segy (C) aadm 2018 // using Statoil's segyio
+    https://nbviewer.jupyter.org/github/aadm/geophysical_notes/blob/master/playing_with_seismic.ipynb
+
+    Slightly modified and upgraded by Erik Mårten Blixt 2020-08-19
+    '''
+    if twod:
+        with segyio.open(filename, 'r', ignore_geometry=True) as segyfile:
+            sr = segyio.tools.dt(segyfile)/1e3
+            nsamples = segyfile.samples.size
+            twt = segyfile.samples
+            ntraces = segyfile.tracecount
+            data = segyfile.trace.raw[:]
+            header = segyio.tools.wrap(segyfile.text[0])
+    else:
+        with segyio.open(f, iline=byte_il, xline=byte_xl) as segyfile:
+            sr = segyio.tools.dt(segyfile)/1e3
+            nsamples = segyfile.samples.size
+            twt = segyfile.samples
+            ntraces = segyfile.tracecount
+            data = segyio.tools.cube(segyfile)
+            header = segyio.tools.wrap(segyfile.text[0])
+            inlines = segyfile.ilines
+            crosslines = segyfile.xlines
+    size_mb= data.nbytes/1024**2
+    info_txt = '[read_segy] reading {}\n'.format(f)
+    info_txt += '[read_segy] number of traces: {0}, samples: {1}, sample rate: {2} s\n'.format(ntraces ,nsamples, sr)
+    info_txt += '[read_segy] first, last sample twt: {0}, {1} s\n'.format(twt[0],twt[-1])
+    info_txt += '[read_segy] size: {:.2f} Mb ({:.2f} Gb)'.format(size_mb, size_mb/1024)
+    print(info_txt)
+    logger.info(info_txt)
+    if not twod:
+        info_txt = '[read_segy] inlines: {:.0f}, min={:.0f}, max={:.0f}\n'.format(inlines.size,inlines.min(),inlines.max())
+        info_txt += '[read_segy] crosslines: {:.0f}, min={:.0f}, max={:.0f}'.format(crosslines.size,crosslines.min(),crosslines.max())
+        print(info_txt)
+        logger.info(info_txt)
+        return xr.DataArray(data, dims= ['INLINE', 'XLINE', 'TWT'], coords=[inlines, crosslines, twt]), \
+               nsamples, sr, twt, ntraces, header, inlines, crosslines
+    else:
+        return xr.DataArray(data, dims= ['TRACES', 'TWT'], coords=[np.arange(ntraces), twt]), \
+               nsamples, sr, twt, ntraces, header, None, None
 
 
 def project_wells(filename, working_dir, all=False):

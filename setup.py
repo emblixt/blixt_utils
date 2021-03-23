@@ -5,12 +5,12 @@ import re
 #    version = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', f.read(), re.MULTILINE).group(1)
 
 setup(
-    name='blixt_utils',
+    name='blixtUtils',
     version=0.1,
     #packages=['io', 'misc', 'plotting', 'signal_analysis'],
     #packages=find_packages(),
     packages=['blixt_utils'],
-    py_modules=['main', 'utils'],
+    #py_modules=['main', 'utils'],
     url='https://github.com/emblixt/blixt_utils',
     license='Apache 2.0',
     author='Erik Mårten Blixt',
