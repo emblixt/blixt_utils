@@ -7,8 +7,8 @@ import re
 setup(
     name='blixtUtils',
     version=0.1,
-    #packages=['io', 'misc', 'plotting', 'signal_analysis'],
-    packages=find_packages(),
+    packages=['blixt_utils', 'blixt_utils.io', 'blixt_utils.misc', 'blixt_utils.plotting', 'blixt_utils.signal_analysis'],
+    #packages=find_packages(),
     #packages=['blixt_utils'],
     #py_modules=['main', 'utils'],
     url='https://github.com/emblixt/blixt_utils',
