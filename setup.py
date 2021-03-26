@@ -1,8 +1,5 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 import re
-
-#with open('seismiqb/__init__.py', 'r') as f:
-#    version = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', f.read(), re.MULTILINE).group(1)
 
 verstr = 'unknown'
 VERSIONFILE = "blixt_utils/_version.py"
@@ -19,8 +16,14 @@ else:
 setup(
     name='blixt_utils',
     version=verstr,
-    packages=['blixt_utils', 'blixt_utils.io', 'blixt_utils.misc', 'blixt_utils.plotting', 'blixt_utils.signal_analysis'],
-    #packages=find_packages(),
+    packages=[
+        'blixt_utils',
+        'blixt_utils.io',
+        'blixt_utils.misc',
+        'blixt_utils.plotting',
+        'blixt_utils.signal_analysis',
+        'blixt_utils.training_data'
+    ],
     url='https://github.com/emblixt/blixt_utils',
     license='Apache 2.0',
     author='Erik Mårten Blixt',

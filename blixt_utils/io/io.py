@@ -6,11 +6,12 @@ import numpy as np
 from datetime import datetime
 from openpyxl import load_workbook, Workbook
 from copy import deepcopy
+import getpass
+import socket
 import logging
 
 import segyio
 
-from rp_utils.version import info
 from blixt_utils.utils import isnan
 
 logger = logging.getLogger(__name__)
@@ -462,7 +463,8 @@ def write_tops(filename, tops, well_names=None, interval_names=None, sheet_name=
         ws = wb[sheet_name]
 
     # modify first line
-    ws['A1'] = info()
+    t0 = datetime.now().isoformat()
+    ws['A1'] = 'Created by {}, at {}, on {}'.format(getpass.getuser(), socket.gethostname(), t0)
 
     # test if fifth row exists
     if ws[5][0].value is None:
