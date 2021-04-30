@@ -8,7 +8,6 @@ import logging
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.colors import colorConverter
-import os
 
 from blixt_utils.utils import arrange_logging
 
@@ -213,12 +212,12 @@ class CreateSynthRefl(GenerateParams):
         self.refl = self.deformation(prm)
         self.qc_plot_deform(prm, ax_deform_x, ax_deform_y, ax_deform_z)
 
-        #flag_zero_counts = False
-        #while flag_zero_counts == False:
-        #    self.x0_f, self.y0_f, self.z0_f, self.throw, self.dip, self.strike, self.type_flt = self.param_fault(prm)
-        #    self.throw_shift(prm)
-        #    flag_zero_counts = self.zero_counts(prm)
-        #self.qc_plot_fault(prm, ax_fault_x, ax_fault_y, ax_fault_z)
+        flag_zero_counts = False
+        while flag_zero_counts == False:
+            self.x0_f, self.y0_f, self.z0_f, self.throw, self.dip, self.strike, self.type_flt = self.param_fault(prm)
+            self.throw_shift(prm)
+            flag_zero_counts = self.zero_counts(prm)
+        self.qc_plot_fault(prm, ax_fault_x, ax_fault_y, ax_fault_z)
 
     def zero_counts(self, prm):
         xyz = np.reshape(self.refl, [prm.nx_tr, prm.ny_tr, prm.nz_tr])
@@ -460,8 +459,8 @@ class CreateSynthRefl(GenerateParams):
                 tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             if lbls is None:
                 lbls = np.reshape(self.labels, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
-            ax_fault_z.imshow(tmp[:, :, half_way], origin='lower')
-            ax_fault_z.imshow(lbls[:, :, half_way], cmap=cmap2, origin='lower')
+            ax_fault_z.imshow(tmp[:, :, half_way])
+            ax_fault_z.imshow(lbls[:, :, half_way], cmap=cmap2)
             ax_fault_z.set_xlabel('X direction at TWT={:.0f}ms'.format(half_way * prm.dt * 1000.))
             if info_txt is not None:
                 ax_fault_z.text(10, 10, info_txt, ha='left', va='top', **text_style)
@@ -485,9 +484,9 @@ class CreateSyntheticTrace(CreateSynthRefl):
         self.qc_plot_1d_noise(prm, ax_one_d_noise)
         self.standardizer()
         self.qc_plot_seismic(prm, ax_seismic_x, ax_seismic_y, ax_seismic_z)
-        #self.crop_center_patch(prm)
-        #self.traces = np.reshape(self.traces, [prm.nx, prm.ny, prm.nz])
-        #self.labels = np.reshape(self.labels, [prm.nx, prm.ny, prm.nz])
+        self.crop_center_patch(prm)
+        self.traces = np.reshape(self.traces, [prm.nx, prm.ny, prm.nz])
+        self.labels = np.reshape(self.labels, [prm.nx, prm.ny, prm.nz])
 
     def convolve_wavelet(self, prm):
         ''' Convolve reflectivity model with a Ricker wavelet '''
@@ -597,12 +596,17 @@ def this_butter_filter(prm):
 
 
 def test(path, seed=None, patch_size=128):
+    import os
+    import json
     """
     test creating a synthetic dataset with labels
     The params are stored in the log, and QC images are stored under the path folder
     :param path:
         str
         folder name where QC images are stored
+    :param seed:
+        A seed to initialize the BitGenerator.
+        https://numpy.org/doc/stable/reference/random/generator.html#numpy.random.default_rng
     :param patch_size:
         int
     :return:
@@ -618,8 +622,17 @@ def test(path, seed=None, patch_size=128):
                                        ax_one_d=axes[0][0], ax_one_d_conv=axes[0][1], ax_one_d_noise=axes[0][2],
                                        ax_deform_x=axes[1][1], ax_deform_y=axes[1][2], ax_deform_z=axes[1][0],
                                        ax_fault_x=axes[2][1], ax_fault_y=axes[2][2], ax_fault_z=axes[2][0],
-                                       ax_seismic_x=axes[3][1], ax_seismic_y=axes[3][2], ax_seismic_z=axes[3][0],
-                                )
+                                       ax_seismic_x=axes[3][1], ax_seismic_y=axes[3][2], ax_seismic_z=axes[3][0]
+                                       )
+
+    # Save qc plot
+    fig.savefig(os.path.join(path, '{}.png'.format(this_date)))
+
+    ## Save data to json
+    #with open(os.path.join(path, '{}_traces.json'.format(this_date)), 'w') as f:
+    #    json.dump(synt_traces.traces.tolist(), f)
+    #with open(os.path.join(path, '{}_labels.json'.format(this_date)), 'w') as f:
+    #    json.dump(synt_traces.labels.tolist(), f)
 
     logger.info('Generating training data {}, random seed: {}'.format(this_date, prm.seed))
     logger.info(' 1D reflection model:')
@@ -633,7 +646,6 @@ def test(path, seed=None, patch_size=128):
         prm.dt, prm.nx, prm.lcut, prm.hcut, 'Ricker', prm.t_lng
     ))
 
-    #fig.savefig(os.path.join(path, '{}.png'.format(this_date)))
 
     return synt_traces
 

@@ -202,9 +202,9 @@ def project_templates(filename):
     for i, ans in enumerate(table['Given well name']):
         if not isinstance(ans, str):
             continue
-        result[ans.upper()] = {}
+        result[ans.upper().strip()] = {}
         for key in ['Color', 'Symbol', 'Content', 'KB', 'UWI', 'UTM', 'X', 'Y', 'Water depth', 'Note']:
-            result[ans.upper()][key.lower()] = None if isnan(table[key][i]) else table[key][i]
+            result[ans.upper().strip()][key.lower()] = None if isnan(table[key][i]) else table[key][i]
 
     return result
 
