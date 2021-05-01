@@ -42,7 +42,7 @@ cnames = [tmp['color'] for tmp, j in zip(plt.rcParams['axes.prop_cycle'], range(
 msymbols = np.array(['o','s','v','^','<','>','p','*','h','H','+','x','D','d','|','_','.','1','2','3','4','8'])
 
 
-def main():
+def test():
     # Set up a test plot
     fig, [ax1, ax2] = plt.subplots(nrows=1, ncols=2)
 
@@ -355,4 +355,4 @@ def point_size(data, min_size=10., max_size=120., scale='lin'):
 
 
 if __name__ == '__main__':
-    main()
+    test()

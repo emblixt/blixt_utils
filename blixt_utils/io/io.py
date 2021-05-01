@@ -859,7 +859,7 @@ def get_las_curve_info(filename):
             continue
 
 
-def convert(lines, file_format='las'):
+def well_reader(lines, file_format='las'):
     """
     class handling wells, with logs, and well related information
     The reading .las files is more or less copied from converter.py
