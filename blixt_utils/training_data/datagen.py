@@ -117,7 +117,6 @@ class DefineParams:
         self.strike_rng = (0, 360)
 
 
-
 class GenerateParams:
     def __init__(self, prm):
 

@@ -307,7 +307,7 @@ def write_sums_and_averages(filename, line_of_data):
                 'M', 'MU', 'KBulkModulus', 'PR', 'Lambda', 'E', 'LambdaMu',
                 'MuRho', 'LambdaRho', 'ShaleVolumeMean', 'ShaleVolumeStdDev',
                 'ShaleVolumeInclusionShape', 'ShaleVolumeAspectRatio', 'Classification',
-                'DateAdded'
+                'LogsUsed', 'DateAdded'
             ]
         )
     ws.append(line_of_data)
