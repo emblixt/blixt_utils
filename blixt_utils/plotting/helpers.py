@@ -257,8 +257,12 @@ def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',
 
     if fill_pos_style == 'default':
         fill_pos_style = {'color': 'r', 'alpha': 0.2, 'lw': 0.}
+    elif fill_pos_style == 'pos-blue':
+        fill_pos_style = {'color': 'b', 'alpha': 0.2, 'lw': 0.}
     if fill_neg_style == 'default':
         fill_neg_style = {'color': 'b', 'alpha': 0.2, 'lw': 0.}
+    elif fill_neg_style == 'neg-red':
+        fill_neg_style = {'color': 'r', 'alpha': 0.2, 'lw': 0.}
     if zero_style is None:
         zero_style = {'lw': 0.5, 'color': 'k', 'alpha': 0.2}
     # shift and scale the data so that it is centered at 'zero_at'
