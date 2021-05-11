@@ -1,4 +1,5 @@
 import numpy as np
+import os
 from itertools import combinations
 from scipy.signal import butter, filtfilt
 from scipy.interpolate import RegularGridInterpolator
@@ -27,10 +28,9 @@ Heavily modified
 class DefineParams:
     """ Parameters for Creating Synthetic Traces """
 
-    def __init__(self, num_data, patch_size, data_path, seed=None):
+    def __init__(self, patch_size, data_path, seed=None):
         """
 
-        :param num_data:
         :param patch_size:
         :param data_path:
         :param seed:
@@ -60,7 +60,6 @@ class DefineParams:
         self.nz = nz  # Number of classes
         self.nxy = nxy  #
         self.nxyz = nxyz  #
-        self.num_data = num_data
         self.data_path = data_path
 
         ' Synthetic traces '
@@ -594,6 +593,78 @@ def this_butter_filter(prm):
     return b, a
 
 
+def datagen(root_dir, _seed, mode, patch_size=128):
+    """
+    Generates an object with an array of synthetic traces and labels that indicates the positions of faults
+        return_object.traces
+        return_object.labels
+    :param root_dir:
+        str
+        folder name to where qc plots and log are stored
+    :param _seed:
+        int
+        A seed to initialize the BitGenerator.
+        https://numpy.org/doc/stable/reference/random/generator.html#numpy.random.default_rng
+    :param mode:
+        str
+        if True, data are generated in validation mode, else in training mode
+        This does not affect the data, but is only meant to used in the logging
+    :param patch_size:
+        int
+        Result arrays will be patch_size x patch_size x patch_size large
+    :return:
+        object with synthetic traces and labels as np.ndarrays
+        return_object.traces
+        return_object.labels
+
+    """
+    fig, axes = plt.subplots(4, 3, figsize=(12, 18))
+    fig.suptitle('{}, seed: {}'.format(mode, _seed))
+
+    prm = DefineParams(patch_size, root_dir, _seed)
+
+    synt_traces = CreateSyntheticTrace(prm,
+                                       ax_one_d=axes[0][0], ax_one_d_conv=axes[0][1], ax_one_d_noise=axes[0][2],
+                                       ax_deform_x=axes[1][1], ax_deform_y=axes[1][2], ax_deform_z=axes[1][0],
+                                       ax_fault_x=axes[2][1], ax_fault_y=axes[2][2], ax_fault_z=axes[2][0],
+                                       ax_seismic_x=axes[3][1], ax_seismic_y=axes[3][2], ax_seismic_z=axes[3][0]
+                                       )
+
+    # Save qc plot
+    this_time = datetime.datetime.now().strftime('%H.%M')
+    fig.savefig(os.path.join(root_dir, '{} {} {}.png'.format(mode, this_time, _seed)))
+
+    logger.info('  Seed: {}'.format(_seed))
+    logger.info('  Mode: {}'.format(mode))
+    logger.info('  Patch_size: {}'.format(patch_size))
+    logger.info('  Number_horizons: {}'.format(synt_traces.num_horizons))
+    logger.info('  Wavelet_frequency: {:.2f}'.format(synt_traces.f0[0]))  # Hz
+    logger.info('  Wavelet_duration: {:.2f}'.format(prm.t_lng * 1000.))  # ms
+    logger.info('  Wavelet_dt: {:.2f}'.format(prm.dt * 1000.))
+    logger.info('  SNR: {:.2f}'.format(synt_traces.snr[0]))
+    logger.info('  Noise_band_low: {:.2f}'.format(prm.lcut))  # Hz
+    logger.info('  Noise_band_high: {:.2f}'.format(prm.hcut))  # Hz
+    logger.info('  Number_Gaussians: {:.0f}'.format(prm.num_gauss))
+    _str = '  Gaussian_amplitudes: [' + ', '.join(['{:2f}'] * len(synt_traces.a)) + ']'
+    logger.info(_str.format(*synt_traces.a))
+    _str = '  Gaussian_frequencies: [' + ', '.join(['{:2f}'] * len(synt_traces.b)) + ']'
+    logger.info(_str.format(*synt_traces.b))
+    logger.info('  Deform_intercept: {:.2f}'.format(synt_traces.e[0]))
+    logger.info('  Deform_X_grad: {:.2f}'.format(synt_traces.f[0]))
+    logger.info('  Deform_Y_grad: {:.2f}'.format(synt_traces.g[0]))
+    logger.info('  Number_faults: {}'.format(synt_traces.num_faults))
+    logger.info('  Fault_min_distance: {}'.format(prm.min_dist))
+    _str = '  Fault_throws: [' + ', '.join(['{:.2f}'] * len(synt_traces.throw)) + ']'
+    logger.info(_str.format(*synt_traces.throw))
+    _str = '  Fault_dips: [' + ', '.join(['{:.2f}'] * len(synt_traces.dip)) + ']'
+    logger.info(_str.format(*synt_traces.dip))
+    _str = '  Fault_strikes: [' + ', '.join(['{:.2f}'] * len(synt_traces.strike)) + ']'
+    logger.info(_str.format(*synt_traces.strike))
+    _str = '  Fault_types: [' + ', '.join(['{:}'] * len(synt_traces.type_flt)) + ']'
+    logger.info(_str.format(*synt_traces.type_flt))
+    logger.info(' ')
+
+
 def test(path, seed=None, patch_size=128):
     import os
     import json
@@ -615,7 +686,7 @@ def test(path, seed=None, patch_size=128):
     this_date = datetime.datetime.now().strftime('%Y-%m-%dT%H.%M.%S.%f')
     fig.suptitle('Run {}'.format(this_date))
 
-    prm = DefineParams(1, patch_size, path, seed)
+    prm = DefineParams(patch_size, path, seed)
 
     synt_traces = CreateSyntheticTrace(prm,
                                        ax_one_d=axes[0][0], ax_one_d_conv=axes[0][1], ax_one_d_noise=axes[0][2],
@@ -644,7 +715,6 @@ def test(path, seed=None, patch_size=128):
     logger.info(' {} : {} : {} : {} : {} : {} '.format(
         prm.dt, prm.nx, prm.lcut, prm.hcut, 'Ricker', prm.t_lng
     ))
-
 
     return synt_traces
 
