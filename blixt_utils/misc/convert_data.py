@@ -54,6 +54,14 @@ def convert(in_data, from_unit=None, to_unit=None):
     if from_unit == 'g/cm3':
         if to_unit == 'kg/m3':
             return 1000. * in_data
+        elif to_unit == 'mpa/m':
+            return 0.0098 * in_data
+        else:
+            success = False
+
+    if from_unit == 'bar':
+        if to_unit == 'mpa':
+            return 0.1 * in_data
         else:
             success = False
 

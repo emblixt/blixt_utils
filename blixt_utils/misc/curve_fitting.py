@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def residuals(x, t, y, target_function=None, weight=None, kwargs=None):
     """
     Returns the residual between the target function and the observed data y

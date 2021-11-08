@@ -185,6 +185,27 @@ def get_rename_logs_dict(well_table):
         return rename_logs
 
 
+def project_wellpath_info(filename):
+    table = pd.read_excel(filename, header=1, sheet_name='Well paths')
+    result = {}
+    for i, ans in enumerate(table['Use']):
+        # skip empty rows
+        if not isinstance(ans, str):
+            continue
+        if ans.lower() == 'yes':
+            temp_dict = {}
+            for key in list(table.keys()):
+                if (key.lower() == 'use') or (key.lower() == 'given well name'):
+                    continue
+                if isnan(table[key][i]):
+                    temp_dict[key.lower()] = None  # avoid NaN
+                else:
+                    value = table[key][i]
+                    temp_dict[key.lower()] = value
+            result[table['Given well name'][i]] = temp_dict
+    return result
+
+
 def project_templates(filename):
     table = pd.read_excel(filename, header=1, sheet_name='Templates')
     result = {}
@@ -424,7 +445,7 @@ def write_tops(filename, tops, well_names=None, interval_names=None, sheet_name=
 
     :param tops:
         dict
-        As output from rp_utils.io.read_tops()
+        As output from blixt_utils.io.read_tops()
         {'well_A name': {'top1 name': top1_depth, 'top2 name': top2_depth, ...},  'well_B name': {...} }
 
     :param well_names:
@@ -658,13 +679,15 @@ def return_dict_from_tops(tops, well_key, top_key, key_name, only_these_wells=No
     return answer
 
 
-def make_clean_list(input_str, small_cap=False):
+def make_clean_list(input_str, small_cap=False, separator=None):
     if not isinstance(input_str, str):
         raise IOError('Only accept strings')
+    if separator is None:
+        separator = ','
     if small_cap:
-        return [x.strip().lower() for x in input_str.split(',') if x.strip() != '']
+        return [x.strip().replace('"', '').lower() for x in input_str.split(separator) if x.strip() != '']
     else:
-        return [x.strip() for x in input_str.split(',') if x.strip() != '']
+        return [x.strip().replace('"', '') for x in input_str.split(separator) if x.strip() != '']
 
 
 def write_las(filename, wh, lh, data, overwrite=False):
@@ -1126,6 +1149,132 @@ def interpret_cutoffs_string(cutoffs_string):
         return None
     else:
         return return_dict
+
+
+def read_wellpath(**kwargs):
+    """
+    Tries to read well path (deviation) data from an ASCII file in different formats and returns a dictionary with the 
+    different columns as key: value pairs.
+    The kwarg dictionary is typically returned from 'project_wellpath_info(project_table.xlsx)[<WELL NAME>]'
+    
+    :keyword 'well path file:
+        string
+        Full path name of well path / deviation file
+    :keyword 'file format':
+        string
+        Name of various well path formats, e.g.:
+            "well trace from petrel"
+            "original survey points"
+            "general ascii" for various formats
+    :keyword 'separator':
+        string
+        String used as separator between data values
+        if equal to 'space', any number of spaces is considered a separator
+        Not necessary if format is different from 'general ascii'
+    :keyword 'data begins on line'
+        float or int
+        Line number (starting with 1) of where the data section starts
+    :keyword 'tvd column':
+        string
+        Column number for TVD values (starting from 1)
+        Not necessary if format is different from 'general ascii'
+    :keyword 'md column':
+        string
+        Column number for MD values (starting from 1)
+        Not necessary if format is different from 'general ascii'
+    :keyword 'inclination column':
+        string
+        Column number for inclination values (starting from 1)
+        Not necessary if format is different from 'general ascii'
+    """
+    def _split(_string, _separator):
+        if _separator == 'space':
+            _this_list = _string.split()
+        elif _separator == 'tab':
+            _this_list = _string.split('\t')
+        else:
+            _this_list = _string.split(_separator)
+        clean_list = []
+        for item in _this_list:
+            if item == '':
+                continue
+            # Only convert pure numbers, and decimal numbers, to float
+            if item.strip().replace('.', '', 1).replace('-', '', 1).isdigit():
+                clean_list.append(float(item.strip()))
+            else:
+                clean_list.append(item.strip().replace('"', ''))
+        return clean_list
+
+    keys = None
+    data = None
+    data_section = False
+    header_section = False
+    filename = kwargs.pop('well path file')
+    file_format = kwargs.pop('file format')
+    if file_format is None:
+        file_format = 'well trace from petrel'
+    elif file_format.lower() not in ['well trace from petrel', 'general ascii', 'original survey points']:
+        raise IOError('Unknown file format {}'.format(file_format))
+
+    if file_format.lower() == 'well trace from petrel':
+        with open(filename, 'r') as f:
+            for line in f.readlines():
+                if line[0] == '#':
+                    header_section = True
+                    continue
+                else:
+                    if 'MD' in line[:20]:
+                        line = line.replace('INCL', 'INC')  # to match blixt_rp calc_well_path() function
+                        keys = line.split()
+                        data = {x: [] for x in keys}
+                    else:
+                        i = 0
+                        this_line_of_data = line.split()
+                        for key in keys:
+                            data[key].append(float(this_line_of_data[i]))
+                            i += 1
+    elif file_format.lower() == 'general ascii':
+        data_line = int(kwargs.pop('data begins on line'))
+        separator = kwargs.pop('separator', 'space')
+        separator = separator.replace('"', '')
+        tvd_column = int(kwargs.pop('tvd column'))
+        md_column = int(kwargs.pop('md column'))
+        inclination_column = int(kwargs.pop('inclination column'))
+        data = {x: [] for x in ['TVD', 'MD', 'INC']}
+        with open(filename, 'r') as f:
+            i = 0
+            for line in f.readlines():
+                if i >= data_line - 1:
+                    # Skip empty lines!
+                    if len(line.strip().replace('\t', '')) == 0:
+                        continue
+                    this_line_of_data = _split(line, separator)
+                    data['MD'].append(this_line_of_data[md_column - 1])
+                    data['TVD'].append(this_line_of_data[tvd_column - 1])
+                    data['INC'].append(this_line_of_data[inclination_column - 1])
+                i += 1
+    elif file_format.lower() == 'original survey points':
+        with open(filename, 'r') as f:
+            for line in f.readlines():
+                if line[:4] == 'MD  ':
+                    line = line.replace('Inc', 'INC')
+                    line = line.replace('TVD(RKB)', 'TVD')
+                    keys = line.split()
+                    data = {x: [] for x in keys}
+                elif line[0].isnumeric():
+                    this_line_of_data = _split(line, 'space')
+                    j = 0
+                    for key in keys:
+                        data[key].append(this_line_of_data[j])
+                        j += 1
+    else:
+        raise IOError('Missing valid file format specifier')
+
+    # convert from lists to arrays
+    if data is not None:
+        for key in list(data.keys()):
+            data[key] = np.array(data[key])
+    return data
 
 
 def my_float(string):
