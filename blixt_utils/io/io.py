@@ -63,31 +63,34 @@ def read_segy(f, lag=0, twod=False, byte_il=189, byte_xl=193):
                nsamples, sr, twt, ntraces, header, None, None
 
 
-def project_wells(filename, working_dir, all=False):
+def project_wells(filename, working_dir):
     """
-    Returns a table containing the requested wells
+    Returns a dictionary containing the requested wells from the project excel table
 
     :param filename:
         Excel file with well names and las files
     :param working_dir:
-    :param all:
-        bool
-        if True, all wells are loaded in the table, and not only the ones for which Use = Yes
     :return:
+        dict
+        dictionary with las file names as keys
     """
-    table = pd.read_excel(filename, header=1, sheet_name='Wells table')
     result = {}
-    for i, ans in enumerate(table['Use']):
+    selected_wells = get_selected_wells(filename)
+    sheet_name = 'Well logs'
+    table = pd.read_excel(filename, header=1, sheet_name=sheet_name)
+    for i, ans in enumerate(table['Given well name']):
         # skip empty rows
         if not isinstance(ans, str):
             continue
-        if all:
-            ans = 'Yes'
-        if ans.lower() == 'yes':
+        # skip las files we have chosen to ignore
+        if table['Use this file'][i].lower() == 'no':
+            continue
+        if fix_well_name(ans) in selected_wells:
+            print(ans)
             temp_dict = {}
             log_dict = {}
             for key in list(table.keys()):
-                if (key.lower() == 'las file') or (key.lower() == 'use'):
+                if (key.lower() == 'las file') or (key.lower() == 'use this file'):
                     continue
                 elif (key.lower() == 'given well name') or \
                         (key.lower() == 'note') or \
@@ -109,13 +112,41 @@ def project_wells(filename, working_dir, all=False):
                         for log_name in this_list:
                             log_dict[log_name] = key
                 temp_dict['logs'] = log_dict
-            temp_file = test_file_path(table['las file'][i], working_dir)
+            # avoid las file names which aren't correctly given as strings
+            if not isinstance(table['las file'][i], str):
+                temp_file = False
+            else:
+                temp_file = test_file_path(table['las file'][i], working_dir)
             if temp_file is False:
-                warn_txt = 'Warning, las file {} does not exist'.format(table['las file'][i])
+                warn_txt = 'Warning, las file {} for well {} does not exist'.format(
+                    table['las file'][i], ans)
                 logger.warning(warn_txt)
                 raise Warning(warn_txt)
             result[test_file_path(table['las file'][i], working_dir)] = temp_dict
     return result
+
+
+def get_selected_wells(filename):
+    """
+    :param filename
+        str
+        full path file name of project table excel file
+    :return
+        list
+        list of given well names of selected wells
+    """""
+    selected_wells = []
+    sheet_name = 'Well settings'
+    table = pd.read_excel(filename, header=1, sheet_name=sheet_name)
+    for i, ans in enumerate(table['Use']):
+        # skip empty rows
+        if not isinstance(ans, str):
+            continue
+        if ans.lower() == 'yes':
+            this_well = table['Given well name'][i]
+            if this_well not in selected_wells:
+                selected_wells.append(fix_well_name(this_well))
+    return selected_wells
 
 
 def invert_well_table(well_table, well_name, rename=True):
@@ -1284,3 +1315,8 @@ def my_float(string):
         return string
 
 
+if __name__ == '__main__':
+    filename = 'H:\\My Drive\\GeoMind\\Clients\\AkerBP\\PL1124 Nise SRC\\PL1124_project_table.xlsx'
+    working_dir = 'H:\\My Drive\\GeoMind\\Clients\\AkerBP\\PL1124 Nise SRC'
+    wells = project_wells(filename, working_dir)
+    print(list(wells.keys()))
