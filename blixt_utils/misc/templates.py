@@ -7,6 +7,27 @@
 #
 # --------------------------------------------------------------------
 
+def log_header_to_template(log_header):
+    """
+    Returns a template dictionary from the information in the log header.
+    :param log_header:
+        core.log_curve.Header
+    :return:
+        dict
+        Dictionary contain template information used by crossplot.py
+    """
+    tdict = {
+        'id': log_header.name if log_header.name is not None else '',
+        'description': log_header.desc if log_header.desc is not None else '',
+        'full_name':
+            '{}, {}'.format(
+                log_header.log_type, log_header.name) if log_header.log_type is not None else log_header.name,
+        'type': 'float',
+        'unit': log_header.unit if log_header.unit is not None else ''
+    }
+    return tdict
+
+
 def handle_template(template_dict):
     """
     Goes through the given template dictionary and returns values directly useful for the scatter plot

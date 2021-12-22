@@ -86,7 +86,6 @@ def project_wells(filename, working_dir):
         if table['Use this file'][i].lower() == 'no':
             continue
         if fix_well_name(ans) in selected_wells:
-            print(ans)
             temp_dict = {}
             log_dict = {}
             for key in list(table.keys()):
@@ -217,16 +216,22 @@ def get_rename_logs_dict(well_table):
 
 
 def project_wellpath_info(filename):
-    table = pd.read_excel(filename, header=1, sheet_name='Well paths')
     result = {}
-    for i, ans in enumerate(table['Use']):
+    table = None
+    try:
+        table = pd.read_excel(filename, header=1, sheet_name='Well paths')
+    except ValueError:
+        raise
+    except Exception as e:
+        print(e)
+    for i, ans in enumerate(table['Use this file']):
         # skip empty rows
         if not isinstance(ans, str):
             continue
         if ans.lower() == 'yes':
             temp_dict = {}
             for key in list(table.keys()):
-                if (key.lower() == 'use') or (key.lower() == 'given well name'):
+                if (key.lower() == 'use this file') or (key.lower() == 'given well name'):
                     continue
                 if isnan(table[key][i]):
                     temp_dict[key.lower()] = None  # avoid NaN
@@ -571,9 +576,12 @@ def write_tops(filename, tops, well_names=None, interval_names=None, sheet_name=
 
 
 def read_petrel_checkshots(filename, only_these_wells=None):
+    # TODO
+    # Build in a check to see what the time units are!
+    # Now we assume it is in ms
+    # If we correct this, then make sure every usage of read_petrel_checkshots is updated
     checkshots = {}
     keys = []
-    this_well_name = ''
     data_section = False
     header_section = False
     i = 0
@@ -594,6 +602,16 @@ def read_petrel_checkshots(filename, only_these_wells=None):
                 i += 1
                 keys.append(line.strip())
             elif data_section:
+                # The well name (within "") may contain spaces, and these spaces must be removed before we
+                # can continue
+                # First find any string within "" on this line
+                match = re.search("\".*?\"", line)
+                if match is not None:
+                    old_well_name = match.group(0)
+                    # Remove any white spaces within the well name
+                    new_well_name = ''.join(old_well_name.split())
+                    # Then replace the well name with spaces with the new well name
+                    line = line.replace(old_well_name, new_well_name)
                 data = line.split()
                 this_well_name = fix_well_name(data[well_i].replace('"', ''))
                 if (only_these_wells is not None) and this_well_name not in only_these_wells:
@@ -1255,7 +1273,7 @@ def read_wellpath(**kwargs):
                     continue
                 else:
                     if 'MD' in line[:20]:
-                        line = line.replace('INCL', 'INC')  # to match blixt_rp calc_well_path() function
+                        line = line.replace('INCL', 'INC')  # to match blixt_rp add_well_path() function
                         keys = line.split()
                         data = {x: [] for x in keys}
                     else:
