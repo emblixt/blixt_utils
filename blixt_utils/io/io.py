@@ -1259,6 +1259,11 @@ def read_wellpath(**kwargs):
     data_section = False
     header_section = False
     filename = kwargs.pop('well path file')
+    if filename is None:
+        info_txt = 'WARNING: No well path file specified, return None'
+        logger.info(info_txt)
+        print(info_txt)
+        return None
     file_format = kwargs.pop('file format')
     if file_format is None:
         file_format = 'well trace from petrel'
