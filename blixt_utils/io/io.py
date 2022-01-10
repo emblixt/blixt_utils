@@ -177,7 +177,7 @@ def invert_well_table(well_table, well_name, rename=True):
                 if logtype not in list(out.keys()):
                     out[logtype] = []
                 if rename and (rdt is not None):
-                    for to_name, from_names in rdt.items():
+                    for to_name, from_names in rdt[key].items():
                         if lname.lower() in from_names:
                             _renamed = True
                             out[logtype].append(to_name.lower())
@@ -195,24 +195,33 @@ def get_rename_logs_dict(well_table):
         as returned from project_wells()
     :return:
         dict or None
+        {<las file name> : {'gr': ['gr_cpi'],
+                            'neu': ['neu_cpi'],
+                            'phit_cpi': ['phit'],
+                            ...} }
     """
     rename_logs = {}
     for las_file, val in well_table.items():
+        these_rename_logs = {}
         if 'Translate log names' not in list(val.keys()):
+            rename_logs[las_file] = None
             continue
         if val['Translate log names'] is None:
+            rename_logs[las_file] = None
             continue
         _dict = interpret_rename_string(val['Translate log names'])
         for key in list(_dict.keys()):
-            if key in list(rename_logs.keys()):
-                if not _dict[key] in rename_logs[key]:  # only insert same rename pair once
-                    rename_logs[key].append(_dict[key].lower())
+            if key in list(these_rename_logs.keys()):
+                if not _dict[key] in these_rename_logs[key]:  # only insert same rename pair once
+                    these_rename_logs[key].append(_dict[key].lower())
             else:
-                rename_logs[key] = [_dict[key].lower()]
-    if len(rename_logs) < 1:
-        return None
-    else:
-        return rename_logs
+                these_rename_logs[key] = [_dict[key].lower()]
+        if len(these_rename_logs) < 1:
+            rename_logs[las_file] = None
+        else:
+            rename_logs[las_file] = these_rename_logs
+
+    return rename_logs
 
 
 def project_wellpath_info(filename):
@@ -376,9 +385,15 @@ def read_tops(filename, top=True, zstick='md', frmt=None, only_these_wells=None)
     """
 
     :param filename:
+        str
+        full path name to excel sheet with well tops
     :param top:
     :param zstick:
     :param frmt:
+        str
+        'petrel'
+        'npd'
+        'rokdoc'
     :param only_these_wells:
         list
         list of well names to look for, so that the reading in can be speeded up
@@ -388,6 +403,8 @@ def read_tops(filename, top=True, zstick='md', frmt=None, only_these_wells=None)
         NOTE! The naming convention of the wells in the project table file must be the same as the one
         used in tops
     :return:
+        dict
+        {'well_A name': {'top1 name': top1_depth, 'top2 name': top2_depth, ...},  'well_B name': {...} }
     """
     if frmt == 'petrel':
         return read_petrel_tops(filename, top=top, zstick=zstick, only_these_wells=only_these_wells)
@@ -469,7 +486,7 @@ def read_petrel_tops(filename, header=None, top=True, zstick='md', only_these_we
     return return_dict_from_tops(tops, 'Well identifier', 'Surface', key_name, only_these_wells=only_these_wells)
 
 
-def write_tops(filename, tops, well_names=None, interval_names=None, sheet_name=None):
+def write_tops(filename, tops_file, frmt, well_names=None, interval_names=None, sheet_name=None):
     """
     Writes the tops to the excel file "filename", in the sheet name 'Working intervals'
     If "filename" exists, and is open, it raises a warning
@@ -479,10 +496,17 @@ def write_tops(filename, tops, well_names=None, interval_names=None, sheet_name=
         full pathname of excel file to write to.
         Assumes we're trying to write to the default project_table.xlsx, in the 'Working intervals' sheet.
 
-    :param tops:
+    :param tops_file:
+        str
         dict
-        As output from blixt_utils.io.read_tops()
-        {'well_A name': {'top1 name': top1_depth, 'top2 name': top2_depth, ...},  'well_B name': {...} }
+        full pathname of file name containing the tops to read from.
+
+    :param frmt:
+        str
+        the file formats supported by blixt_utils.io.read_tops()
+        'petrel'
+        'npd'
+        'rokdoc'
 
     :param well_names:
         list
@@ -521,13 +545,17 @@ def write_tops(filename, tops, well_names=None, interval_names=None, sheet_name=
 
     # modify first line
     t0 = datetime.now().isoformat()
-    ws['A1'] = 'Created by {}, at {}, on {}'.format(getpass.getuser(), socket.gethostname(), t0)
+    ws['A1'] = 'Created by {}, at {}, on {} based on tops in {}'.format(
+        getpass.getuser(), socket.gethostname(), t0, tops_file)
 
     # test if fifth row exists
     if ws[5][0].value is None:
         ws['A2'] = 'Depth are in meters MD'
         for j, val in enumerate(['Use', 'Given well name', 'Interval name', 'Top depth', 'Base depth']):
             ws.cell(5, j+1).value = val
+
+    # read in the tops
+    tops = read_tops(tops_file, frmt=frmt)
 
     # start appending data
     if well_names is None:
@@ -586,6 +614,9 @@ def read_petrel_checkshots(filename, only_these_wells=None):
     header_section = False
     i = 0
     well_i = None
+
+    if filename is None:
+        return None
 
     with open(filename, 'r') as f:
         for line in f.readlines():
@@ -974,10 +1005,13 @@ def well_reader(lines, file_format='las'):
     null_val = None
     section = ""
     length_units = ['m', 'ft']
-    rules = {"version", "well_info", "parameter", "curve"}
+    accepted_sections = {"version", "well_info", "parameter", "curve"}
     descriptions = []
     curve_names = None
-    well_dict = {"version": {}, "well_info": {}, "curve": {}, "parameter": {}, "data": {}, "other": ""}
+    well_dict = {xx: {} for xx in accepted_sections}
+    well_dict["data"] = {}
+    well_dict["other"] = ""
+    #well_dict = {"version": {}, "well_info": {}, "curve": {}, "parameter": {}, "data": {}, "other": ""}
     if file_format == 'RP well table':
         null_val = 'NaN'
 
@@ -1047,7 +1081,7 @@ def well_reader(lines, file_format='las'):
         # unregistered section
         if section is None: continue
 
-        if section in rules:
+        if section in accepted_sections:
             # index of seperator
             if re.search("[.]{1}", line) is None:
                 print('Caught problem')
@@ -1260,9 +1294,9 @@ def read_wellpath(**kwargs):
     header_section = False
     filename = kwargs.pop('well path file')
     if filename is None:
-        info_txt = 'WARNING: No well path file specified, return None'
+        info_txt = 'No well path file specified, return None'
         logger.info(info_txt)
-        print(info_txt)
+        print('WARNING: {}'.format(info_txt))
         return None
     file_format = kwargs.pop('file format')
     if file_format is None:

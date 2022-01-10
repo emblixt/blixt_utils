@@ -14,6 +14,38 @@ cclrs = cycle(clrs)  # "infinite" loop of the base colors
 def next_color():
     return next(cclrs)
 
+
+def true_plot(ax, y, data, true_color='b', yticks=True, **kwargs):
+    """
+    Plot data in one subplot
+    :param ax:
+        matplotlib axes object
+    :param y:
+        numpy ndarray
+        The depth data of length N
+    :param data:
+        Boolean array of length N
+    :param true_color:
+        str
+        color string for the coloring the true values
+    :param yticks:
+        bool
+        if False the yticklabels are not shown
+    :param nxt:
+        int
+        Number of gridlines in x direction
+    :param kwargs:
+    """
+    # convert true values to one
+    x = np.zeros(len(data))
+    x[data] = 1
+    ax.fill_between(x, y, color=true_color, alpha=0.5)
+    ax.set_xlim([0.1, 1])
+    ax.get_xaxis().set_ticks([])
+    if not yticks:
+        ax.get_yaxis().set_ticklabels([])
+
+
 def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
     """
     Plot data in one subplot
