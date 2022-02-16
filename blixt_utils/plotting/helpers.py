@@ -72,10 +72,13 @@ def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
         int
         Number of gridlines in x direction
     :param kwargs:
+        :param ylim:
+        list of min max value of the y axis
     :return:
         list
         xlim, list of list, each with the limits (min, max) of the x axis
     """
+    ylim = kwargs.pop('ylim', None)
     if data is None:
         ax.get_xaxis().set_ticks([])
         ax.get_yaxis().set_ticks([])
@@ -120,7 +123,10 @@ def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
         else:
             axes[i].get_xaxis().set_ticks([])
         if i == 0:
-            axes[i].set_ylim(ax.get_ylim()[::-1])
+            if ylim is not None:
+                axes[i].set_ylim(ylim[::-1])
+            else:
+                axes[i].set_ylim(ax.get_ylim()[::-1])
             if not yticks:
                 axes[i].get_yaxis().set_ticklabels([])
         else:
@@ -165,6 +171,8 @@ def axis_log_plot(ax, y, data, limits, styles, yticks=True,  **kwargs):
     if not (len(data) == len(styles)):
         raise IOError('Must be same number of items in data and styles')
 
+    ylim = kwargs.pop('ylim', None)
+
     # store the x axis limits that has been used in each axis
     xlims = []
 
@@ -179,7 +187,10 @@ def axis_log_plot(ax, y, data, limits, styles, yticks=True,  **kwargs):
     ax.get_xaxis().set_ticklabels([])
     ax.tick_params(axis='x', which='both', length=0)
 
-    ax.set_ylim(ax.get_ylim()[::-1])
+    if ylim is not None:
+        ax.set_ylim(ylim[::-1])
+    else:
+        ax.set_ylim(ax.get_ylim()[::-1])
     if not yticks:
         ax.get_yaxis().set_ticklabels([])
         ax.tick_params(axis='y', length=0)
@@ -190,14 +201,18 @@ def axis_log_plot(ax, y, data, limits, styles, yticks=True,  **kwargs):
     return xlims
 
 
-def annotate_plot(ax, y, pad=-30):
+def annotate_plot(ax, y, pad=-30, **kwargs):
+    ylim = kwargs.pop('ylim', None)
     if y is None:
         ax.get_xaxis().set_ticks([])
         ax.get_yaxis().set_ticks([])
         return
 
     ax.plot(np.ones(len(y)), y, lw=0)
-    ax.set_ylim(ax.get_ylim()[::-1])
+    if ylim is not None:
+        ax.set_ylim(ylim[::-1])
+    else:
+        ax.set_ylim(ax.get_ylim()[::-1])
     ax.get_xaxis().set_ticks([])
     ax.tick_params(axis='y', direction='in', length=5., labelsize='smaller', right=True)
     yticks = [*ax.yaxis.get_major_ticks()]
@@ -278,6 +293,8 @@ def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',
 
     :return:
     """
+    ylim = kwargs.pop('ylim', None)
+
     if y is None:
         ax.get_xaxis().set_ticks([])
         ax.get_yaxis().set_ticks([])
@@ -309,7 +326,10 @@ def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',
 
     ax.axvline(zero_at, **zero_style)
 
-    ax.set_ylim(ax.get_ylim()[::-1])
+    if ylim is not None:
+        ax.set_ylim(ylim[::-1])
+    else:
+        ax.set_ylim(ax.get_ylim()[::-1])
 
 def set_lim(ax, limits, axis=None):
     """

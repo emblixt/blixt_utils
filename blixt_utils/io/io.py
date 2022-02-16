@@ -656,6 +656,53 @@ def read_petrel_checkshots(filename, only_these_wells=None):
     return checkshots
 
 
+def read_well_headers(filename):
+    inside_header = True
+    key_replacements = []
+    data_column = 1E6
+    coord_string = None
+    coord_identifier = '# Coordinate reference system X, Y:'
+    column_headers = ['Name', 'Well symbol', 'Surface X', 'Surface Y', 'Well datum value', 'TD (MD)', 'Operator',
+                      'TWT auto', 'STRING,Total Depth Type', 'STRING,Well UWI Type', 'STRING,Offshore Block',
+                      'STRING,Comment', 'STRING,Well Comment', 'STRING,Offshore Area', 'STRING,Country',
+                      'STRING,Well Uwi', 'STRING,ElevationDatum', 'STRING,Location', 'STRING,Well.GroundElevation',
+                      'STRING,PathXYOffsetCRS', 'STRING,Elevation', 'STRING,Project.CoordinateSystem']
+    for row in open(filename, 'r'):
+        if row[0] == '#':
+            if row.__contains__(coord_identifier):
+                coord_string = row.replace(coord_identifier, '')
+            continue
+        if row[:10] == 'BEGIN HEAD':
+            data_column = 0
+        if row[:10] == 'END HEADER':
+            inside_header = False
+            continue
+        if inside_header:
+            # Extract the columns we are interested in
+            pass
+
+        else: # inside the data section
+            # Find all parts of the row that contains a '<key AAAA> BBBB </key>' section, and replace and ignore it
+            # TODO handle the replaced xml code too
+            match = re.findall("<key (.*?)</key>", row)
+            for i, this_match in enumerate(match):
+                row = row.replace('<key {}</key>'.format(this_match), 'key_replacement_{}'.format(i))
+
+            # TODO Find any strings specifying a lat / lon (e.g 65°55'1.6900"N) and replace with deg, min, sec
+            # match = re.findall('[^ ]*\"[NE]', row)
+
+            # find any string within "" on this line
+            match = re.findall("(?:\")(.*?)(?:\")", row)
+            # remove any spaces in these strings
+            for i, this_match in enumerate(match):
+                row = row.replace(this_match, '_'.join(this_match.split()))
+
+            # Now split the line and remove any "
+            new_line = [_x.replace('"', '') for _x in row.split()]
+            print(len(new_line), new_line[40:])
+
+    print(coord_string)
+
 def test_file_path(file_path, working_dir):
     # Convert backward slashes to forward slashes
     file_path = file_path.replace("\\", "/")
