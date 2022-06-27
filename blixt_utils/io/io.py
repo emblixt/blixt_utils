@@ -304,7 +304,7 @@ def collect_project_wells(well_table, target_dir):
 
 
 def read_sums_and_averages(filename, header=20):
-    table = pd.read_excel(filename, header=header)
+    table = pd.read_excel(filename, header=header, engine='openpyxl')
     unique_layers = unique_names(table, 'Name', well_names=False)
     answer = {}
     for layer in unique_layers:
@@ -702,6 +702,7 @@ def read_well_headers(filename):
             print(len(new_line), new_line[40:])
 
     print(coord_string)
+
 
 def test_file_path(file_path, working_dir):
     # Convert backward slashes to forward slashes

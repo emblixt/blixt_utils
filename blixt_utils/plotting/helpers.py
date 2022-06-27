@@ -331,6 +331,7 @@ def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',
     else:
         ax.set_ylim(ax.get_ylim()[::-1])
 
+
 def set_lim(ax, limits, axis=None):
     """
     Convinience function to set the x axis limits. Interprets None as autoscale
