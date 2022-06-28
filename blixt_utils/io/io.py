@@ -13,6 +13,7 @@ import logging
 import segyio
 
 from blixt_utils.utils import isnan
+from blixt_utils.utils import nan_corrcoef
 
 logger = logging.getLogger(__name__)
 
@@ -381,6 +382,48 @@ def write_sums_and_averages(filename, line_of_data):
     wb.close()
 
 
+def write_pcube_lfc(working_dir, results, wi_name, log_table, cutoffs_str, suffix, well_name=None):
+    """
+    Save the results in a format compatible with the .lfc format used in PCube+ Petrel plug-in from Cegal.
+    The units are assumed to be m/s and g/cc
+    :return
+    """
+    if well_name is not None:
+        name = '{} {}{}'.format(well_name, wi_name, suffix)
+    else:
+        name = '{}{}'.format(wi_name, suffix)
+    log_table_str = ''
+    for key in log_table:
+        log_table_str += '{}: {}, '.format(key, log_table[key])
+    log_table_str = log_table_str.rstrip(', ')
+    with open(os.path.join(working_dir, '{}.lfc'.format(name)), 'w') as f:
+        f.write('Name: {}\n'.format(name))
+        f.write('MeanVp: {:.2f}\n'.format(np.nanmean(results[log_table['P velocity'].lower()])))
+        f.write('MeanVs: {:.2f}\n'.format(np.nanmean(results[log_table['S velocity'].lower()])))
+        f.write('MeanRho: {:.4f}\n'.format(np.nanmean(results[log_table['Density'].lower()])))
+        f.write('StdevVp: {:.2f}\n'.format(np.nanstd(results[log_table['P velocity'].lower()])))
+        f.write('StdevVs: {:.2f}\n'.format(np.nanstd(results[log_table['S velocity'].lower()])))
+        f.write('StdevRho: {:.4f}\n'.format(np.nanstd(results[log_table['Density'].lower()])))
+        vp_vs = nan_corrcoef(
+            results[log_table['P velocity'].lower()],
+            results[log_table['S velocity'].lower()])[0, 1]
+        if vp_vs > 0.9:
+            warn_txt = 'Correlation between Vp and Vs is spuriously high in {}, replaced with a ccoef of 0.9'.format(name)
+            logger.warning(warn_txt)
+            print('WARNING: {}'.format(warn_txt))
+            vp_vs = 0.9
+        f.write('XCCVpVs: {:.2f}\n'.format(vp_vs))
+        f.write('XCCVpRho: {:.4f}\n'.format(nan_corrcoef(
+            results[log_table['P velocity'].lower()],
+            results[log_table['Density'].lower()])[0, 1]))
+        f.write('XCCVsRho: {:.4f}\n'.format(nan_corrcoef(
+            results[log_table['S velocity'].lower()],
+            results[log_table['Density'].lower()])[0, 1]))
+        f.write('# Cutoffs used: {}\n'.format(cutoffs_str))
+        f.write('# Logs used: {}\n'.format(log_table_str))
+        f.write('# Date added: {}\n'.format(datetime.now()))
+
+
 def read_tops(filename, top=True, zstick='md', frmt=None, only_these_wells=None):
     """
 
@@ -702,6 +745,7 @@ def read_well_headers(filename):
             print(len(new_line), new_line[40:])
 
     print(coord_string)
+
 
 def test_file_path(file_path, working_dir):
     # Convert backward slashes to forward slashes
