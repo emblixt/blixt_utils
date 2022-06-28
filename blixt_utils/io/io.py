@@ -305,7 +305,7 @@ def collect_project_wells(well_table, target_dir):
 
 
 def read_sums_and_averages(filename, header=20):
-    table = pd.read_excel(filename, header=header)
+    table = pd.read_excel(filename, header=header, engine='openpyxl')
     unique_layers = unique_names(table, 'Name', well_names=False)
     answer = {}
     for layer in unique_layers:
@@ -317,6 +317,69 @@ def read_sums_and_averages(filename, header=20):
         for i, value in enumerate(table[key]):
             answer[table['Name'][i]][key] = value
 
+    return answer
+
+
+def read_lfc_file(filename):
+    """
+    Reads a .lfc file and returns a dictionary with the information the file holds in a format compatible with
+    read_sums_and_averages
+    :param filename: str
+        Full path name of .lfc file
+    :return:
+        Dictionary with
+        { <NAME>:
+            {
+                'VpMean': XXX,
+                'VsMean': XXX,
+                'RhoMean': XXX,
+                'VpStdDev': XXX,
+                'VsStdDev': XXX,
+                'RhoStdDev': XXX,
+                'VpVsCorrCoef': XXX,
+                'VpRhoCorrCoef': XXX,
+                'VsRhoCorrCoef': XXX,
+                'Classification': XXX,
+                'LogsUsed': XXX,
+                'DateAdded': XXX
+            }
+        }
+    """
+    # create an empty container with the resulting data
+    answer = {}
+    with open(filename) as f:
+        all_lines = f.readlines()
+    # First search through the file to extract the name
+    name = 'XXX'
+    for line in all_lines:
+        if 'Name: ' in line:
+            name = line.replace('Name: ', '').replace('\n', '')
+            answer[name] = {}
+
+    # strings that identifies the data elements of the input and output
+    data_ids = [
+        ['MeanVp: ', 'VpMean'],
+        ['MeanVs: ', 'VsMean'],
+        ['MeanRho: ', 'RhoMean'],
+        ['StdevVp: ', 'VpStdDev'],
+        ['StdevVs: ', 'VsStdDev'],
+        ['StdevRho: ', 'RhoStdDev'],
+        ['XCCVpVs: ', 'VpVsCorrCoef'],
+        ['XCCVpRho: ', 'VpRhoCorrCoef'],
+        ['XCCVsRho: ', 'VsRhoCorrCoef'],
+        ['# Cutoffs used: ', 'Classification'],
+        ['# Logs used: ', 'LogsUsed'],
+        ['# Date added: ', 'DateAdded']
+    ]
+
+    # loop through file again and search for the data identifiers
+    for line in all_lines:
+        for data_id in data_ids:
+            if data_id[0] in line:
+                if '#' in data_id[0]:
+                    answer[name][data_id[1]] = line.replace(data_id[0], '').replace('\n', '')
+                else:
+                    answer[name][data_id[1]] = float(line.replace(data_id[0], '').replace('\n', ''))
     return answer
 
 
