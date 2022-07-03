@@ -486,3 +486,56 @@ def plot_ampspecs(ax, freq_amp_list, names=None):
             aa.legend(fontsize='small')
 
 
+def confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
+    """
+    Plotting a confidence ellipsis as based on the
+    https://matplotlib.org/stable/gallery/statistics/confidence_ellipse.html
+    example
+
+    Args:
+        x, y : array-like, shape (n, )
+            Input data.
+
+        ax: matplotlib.axes.Axes
+            The axes object to draw the ellipse in
+
+        n_std: float
+            The number of standard deviations to determine the ellipse's radiuses
+        **kwargs
+            Forwarded to the ~matplotlib.patches.Ellipse
+
+    Returns:
+        matplotlib.patches.Ellipse
+    """
+    from matplotlib.patches import Ellipse
+    from matplotlib.transforms import Affine2D
+
+    if x.size != y.size:
+        raise ValueError("x and y must be the same size")
+
+    cov = np.cov(x, y)
+    xy_corr_coef = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
+    # Using a special case to obtain the eigenvalues of this
+    # two-dimensional dataset.
+    ell_radius_x = np.sqrt(1 + xy_corr_coef)
+    ell_radius_y = np.sqrt(1 - xy_corr_coef)
+    ellipse = Ellipse((0, 0), width=ell_radius_x * 2, height=ell_radius_y * 2,
+                      facecolor=facecolor, **kwargs)
+
+    x_std = np.sqrt(cov[0, 0])
+    scale_x = x_std * n_std
+    x_mean = np.mean(x)
+
+    y_std = np.sqrt(cov[1, 1])
+    scale_y = y_std * n_std
+    y_mean = np.mean(y)
+
+    transf = Affine2D() \
+        .rotate_deg(45) \
+        .scale(scale_x, scale_y) \
+        .translate(x_mean, y_mean)
+
+    ellipse.set_transform(transf + ax.transData)
+    return ax.add_patch(ellipse)
+
+

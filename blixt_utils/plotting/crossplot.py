@@ -182,12 +182,13 @@ def plot(
     import matplotlib.markers as mmarkers
 
     # set up plotting environment
-    if fig is None:
-        if ax is None:
-            fig = plt.figure(figsize=(10,10))
-            ax = fig.subplots()
-    elif ax is None:
-        ax = fig.subplots()
+    if fig is not None:
+        print("WARNING: The fig parameter is deprecated, the figure instance is automatically picked from the ax object")
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 10))
+    else:
+        fig = ax.get_figure()
 
     # handle markers
     msymbol = None

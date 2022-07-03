@@ -320,69 +320,6 @@ def read_sums_and_averages(filename, header=20):
     return answer
 
 
-def read_lfc_file(filename):
-    """
-    Reads a .lfc file and returns a dictionary with the information the file holds in a format compatible with
-    read_sums_and_averages
-    :param filename: str
-        Full path name of .lfc file
-    :return:
-        Dictionary with
-        { <NAME>:
-            {
-                'VpMean': XXX,
-                'VsMean': XXX,
-                'RhoMean': XXX,
-                'VpStdDev': XXX,
-                'VsStdDev': XXX,
-                'RhoStdDev': XXX,
-                'VpVsCorrCoef': XXX,
-                'VpRhoCorrCoef': XXX,
-                'VsRhoCorrCoef': XXX,
-                'Classification': XXX,
-                'LogsUsed': XXX,
-                'DateAdded': XXX
-            }
-        }
-    """
-    # create an empty container with the resulting data
-    answer = {}
-    with open(filename) as f:
-        all_lines = f.readlines()
-    # First search through the file to extract the name
-    name = 'XXX'
-    for line in all_lines:
-        if 'Name: ' in line:
-            name = line.replace('Name: ', '').replace('\n', '')
-            answer[name] = {}
-
-    # strings that identifies the data elements of the input and output
-    data_ids = [
-        ['MeanVp: ', 'VpMean'],
-        ['MeanVs: ', 'VsMean'],
-        ['MeanRho: ', 'RhoMean'],
-        ['StdevVp: ', 'VpStdDev'],
-        ['StdevVs: ', 'VsStdDev'],
-        ['StdevRho: ', 'RhoStdDev'],
-        ['XCCVpVs: ', 'VpVsCorrCoef'],
-        ['XCCVpRho: ', 'VpRhoCorrCoef'],
-        ['XCCVsRho: ', 'VsRhoCorrCoef'],
-        ['# Cutoffs used: ', 'Classification'],
-        ['# Logs used: ', 'LogsUsed'],
-        ['# Date added: ', 'DateAdded']
-    ]
-
-    # loop through file again and search for the data identifiers
-    for line in all_lines:
-        for data_id in data_ids:
-            if data_id[0] in line:
-                if '#' in data_id[0]:
-                    answer[name][data_id[1]] = line.replace(data_id[0], '').replace('\n', '')
-                else:
-                    answer[name][data_id[1]] = float(line.replace(data_id[0], '').replace('\n', ''))
-    return answer
-
-
 def write_sums_and_averages(filename, line_of_data):
     # This function creates xlsx files. so please use Excel to save them as
     # xls files before attempting to load them into RokDoc
@@ -443,6 +380,69 @@ def write_sums_and_averages(filename, line_of_data):
     ws.append(line_of_data)
     wb.save(filename)
     wb.close()
+
+
+def read_pcube_lfc(filename):
+    """
+    Reads a .lfc file and returns a dictionary with the information the file holds in a format compatible with
+    read_sums_and_averages
+    :param filename: str
+        Full path name of .lfc file
+    :return:
+        Dictionary with
+        { <NAME>:
+            {
+                'VpMean': XXX,
+                'VsMean': XXX,
+                'RhoMean': XXX,
+                'VpStdDev': XXX,
+                'VsStdDev': XXX,
+                'RhoStdDev': XXX,
+                'VpVsCorrCoef': XXX,
+                'VpRhoCorrCoef': XXX,
+                'VsRhoCorrCoef': XXX,
+                'Classification': XXX,
+                'LogsUsed': XXX,
+                'DateAdded': XXX
+            }
+        }
+    """
+    # create an empty container with the resulting data
+    answer = {}
+    with open(filename) as f:
+        all_lines = f.readlines()
+    # First search through the file to extract the name
+    name = 'XXX'
+    for line in all_lines:
+        if 'Name: ' in line:
+            name = line.replace('Name: ', '').replace('\n', '')
+            answer[name] = {}
+
+    # strings that identifies the data elements of the input and output
+    data_ids = [
+        ['MeanVp: ', 'VpMean'],
+        ['MeanVs: ', 'VsMean'],
+        ['MeanRho: ', 'RhoMean'],
+        ['StdevVp: ', 'VpStdDev'],
+        ['StdevVs: ', 'VsStdDev'],
+        ['StdevRho: ', 'RhoStdDev'],
+        ['XCCVpVs: ', 'VpVsCorrCoef'],
+        ['XCCVpRho: ', 'VpRhoCorrCoef'],
+        ['XCCVsRho: ', 'VsRhoCorrCoef'],
+        ['# Cutoffs used: ', 'Classification'],
+        ['# Logs used: ', 'LogsUsed'],
+        ['# Date added: ', 'DateAdded']
+    ]
+
+    # loop through file again and search for the data identifiers
+    for line in all_lines:
+        for data_id in data_ids:
+            if data_id[0] in line:
+                if '#' in data_id[0]:
+                    answer[name][data_id[1]] = line.replace(data_id[0], '').replace('\n', '')
+                else:
+                    answer[name][data_id[1]] = float(line.replace(data_id[0], '').replace('\n', ''))
+    return answer
 
 
 def write_pcube_lfc(working_dir, results, wi_name, log_table, cutoffs_str, suffix, well_name=None):
