@@ -316,6 +316,7 @@ def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',
         zero_style = {'lw': 0.5, 'color': 'k', 'alpha': 0.2}
     # shift and scale the data so that it is centered at 'zero_at'
     wig = zero_at + wiggle*scaling
+    #print('Wiggle plot lengths: {}, {}'.format(len(wig), len(y)))
     ax.plot(wig, y, lw=lw, color=c, **kwargs)
     if fill_pos_style is not None:
         ax.fill_betweenx(y, wig, zero_at, wig > zero_at, **fill_pos_style)

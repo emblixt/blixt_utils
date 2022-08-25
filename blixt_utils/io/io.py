@@ -64,6 +64,80 @@ def read_segy(f, lag=0, twod=False, byte_il=189, byte_xl=193):
                nsamples, sr, twt, ntraces, header, None, None
 
 
+def read_petrel_wavelet(filename, normalize=True, convert_to_zero_phase=False):
+    """
+    Reads a wavelet exported from Petrel using the ASCII format
+    Returns the header (dictionary), time [s] and the wavelet
+    :param filename:
+        str
+        filename with full path to wavelet file in Petrel ASCII format
+    :param normalize:
+        bool
+        if set to True, the wavelet values are normalized so that the maximum value is one
+    :param convert_to_zero_phase:
+        bool
+        if set to True, the wavelet is converted to zero phase so that its maximum occurs at time zero
+    """
+    name_identifier = 'WAVELET-NAME'
+    sample_rate_identifier = 'SAMPLE-RATE'
+    name = 'unknown'
+    sample_rate = None
+    normalized = False
+    zero_phased = False
+    scale_factor = 1.
+
+    # create empty data containers
+    header, time, wavelet = {}, [], []
+
+    with open(filename) as f:
+        all_lines = f.readlines()
+
+    inside_header = True
+    for line in all_lines:
+        if line[:3] == 'EOH':
+            inside_header = False
+            continue
+        if line[:3] == 'EOD':
+            break
+        if inside_header:
+            if name_identifier in line:
+                name = line.replace(name_identifier, '').replace('\n', '').strip()
+            if sample_rate_identifier in line:
+                sample_rate = line.replace(sample_rate_identifier, '').replace('\n', '').strip()
+        if not inside_header:
+            data = line.replace('\n', '').strip().split()
+            if len(data) == 2:
+                time.append(float(data[0]) / 1000.)  # ms to s
+                wavelet.append(float(data[1]))
+
+    header['Name'] = name
+    header['Sample rate'] = float(sample_rate) / 1000.
+    header['Original filename'] = filename
+    header['Normalized'] = normalized
+    header['Scale factor'] = scale_factor
+    header['Converted to zero phase'] = zero_phased
+    header['Time shift'] = 0.
+
+    wavelet = np.array(wavelet)
+    time = np.array(time)
+    if normalize:
+        scale_factor = max(wavelet)
+        wavelet = wavelet / scale_factor
+        header['Normalized'] = normalized
+        header['Scale factor'] = scale_factor
+    if convert_to_zero_phase:
+        time_at_max = time[np.argmax(wavelet)]
+        time = time - time_at_max
+        header['Converted to zero phase'] = True
+        header['Time shift'] = -1. * time_at_max
+
+    if np.mod(len(time), 2) != 0:  # odd number of elements
+        time = time[:-1]
+        wavelet = wavelet[:-1]
+
+    return header, time, wavelet
+
+
 def project_wells(filename, working_dir):
     """
     Returns a dictionary containing the requested wells from the project excel table
