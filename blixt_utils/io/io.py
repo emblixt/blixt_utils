@@ -9,6 +9,7 @@ from copy import deepcopy
 import getpass
 import socket
 import logging
+from scipy.interpolate import interp1d
 
 import segyio
 
@@ -64,7 +65,10 @@ def read_segy(f, lag=0, twod=False, byte_il=189, byte_xl=193):
                nsamples, sr, twt, ntraces, header, None, None
 
 
-def read_petrel_wavelet(filename, normalize=True, convert_to_zero_phase=False):
+def read_petrel_wavelet(filename,
+                        normalize=True,
+                        convert_to_zero_phase=False,
+                        resample_to=None):
     """
     Reads a wavelet exported from Petrel using the ASCII format
     Returns the header (dictionary), time [s] and the wavelet
@@ -77,6 +81,9 @@ def read_petrel_wavelet(filename, normalize=True, convert_to_zero_phase=False):
     :param convert_to_zero_phase:
         bool
         if set to True, the wavelet is converted to zero phase so that its maximum occurs at time zero
+    :param resample_to:
+        float
+        set this to the desired sample rate of the wavelet.
     """
     name_identifier = 'WAVELET-NAME'
     sample_rate_identifier = 'SAMPLE-RATE'
@@ -84,6 +91,7 @@ def read_petrel_wavelet(filename, normalize=True, convert_to_zero_phase=False):
     sample_rate = None
     normalized = False
     zero_phased = False
+    resampled = False
     scale_factor = 1.
 
     # create empty data containers
@@ -117,6 +125,7 @@ def read_petrel_wavelet(filename, normalize=True, convert_to_zero_phase=False):
     header['Scale factor'] = scale_factor
     header['Converted to zero phase'] = zero_phased
     header['Time shift'] = 0.
+    header['Resampled'] = resampled
 
     wavelet = np.array(wavelet)
     time = np.array(time)
@@ -130,6 +139,23 @@ def read_petrel_wavelet(filename, normalize=True, convert_to_zero_phase=False):
         time = time - time_at_max
         header['Converted to zero phase'] = True
         header['Time shift'] = -1. * time_at_max
+
+    if resample_to is not None:
+        if not isinstance(resample_to, float):
+            raise IOError('Sample rate must be a floating number in seconds')
+        if resample_to == float(sample_rate):
+            print('Desired sample rate {} matches original sample rate {}. No resampling done'.format(
+                resample_to, sample_rate
+            ))
+        else:
+            f = interp1d(time, wavelet, kind='cubic')
+            new_time = np.arange(time[0], time[-1] + resample_to, resample_to)
+            new_wavelet = f(new_time)
+            time = new_time
+            wavelet = new_wavelet
+            resampled = True
+            header['Sample rate'] = resample_to
+            header['Resampled'] = resampled
 
     if np.mod(len(time), 2) != 0:  # odd number of elements
         time = time[:-1]
