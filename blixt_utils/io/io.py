@@ -149,7 +149,8 @@ def read_petrel_wavelet(filename,
             ))
         else:
             f = interp1d(time, wavelet, kind='cubic')
-            new_time = np.arange(time[0], time[-1] + resample_to, resample_to)
+            #new_time = np.arange(time[0], time[-1] + resample_to, resample_to)
+            new_time = np.arange(time[0], time[-1], resample_to)
             new_wavelet = f(new_time)
             time = new_time
             wavelet = new_wavelet
@@ -164,6 +165,89 @@ def read_petrel_wavelet(filename,
     return header, time, wavelet
 
 
+def project_wells_new(filename, working_dir):
+    """
+    Returns a dictionary containing the requested wells from the project excel table
+    Avoids using the old "Translate log names" column of the project excel table, and uses
+    direct interpretation based on the translate to symbol '->' in the log type columns 
+
+    :param filename:
+        Excel file with well names and las files
+    :param working_dir:
+    :return:
+        dict
+        dictionary with las file names as keys
+    """
+    result = {}
+    selected_wells = get_selected_wells(filename)
+    sheet_name = 'Well logs'
+    table = pd.read_excel(filename, header=1, sheet_name=sheet_name, engine='openpyxl')
+    if 'translate log names' in [xx.lower() for xx in list(table.keys())]:
+        error_txt = \
+            "Project table contain specific column for log name translation (Translate log name)." + \
+            'Old version of project_wells must be used'
+        logger.warning(error_txt)
+        raise IOError(error_txt)
+    for i, ans in enumerate(table['Given well name']):
+        # skip empty rows
+        if not isinstance(ans, str):
+            continue
+        # skip las files we have chosen to ignore
+        if table['Use this file'][i].lower() == 'no':
+            continue
+        if fix_well_name(ans) in selected_wells:
+            temp_dict = {}
+            log_dict = {}
+            translate_to_string = ''
+            for key in list(table.keys()):
+                if (key.lower() == 'las file') or (key.lower() == 'use this file'):
+                    continue
+                elif (key.lower() == 'given well name') or \
+                        (key.lower() == 'note'):
+                    if isinstance(table[key][i], str):
+                        if key.lower() == 'given well name':
+                            value = fix_well_name(table[key][i])
+                        else:
+                            value = table[key][i]
+                        temp_dict[key] = value
+                    else:
+                        temp_dict[key] = None  # avoid NaN
+                else:
+                    val = table[key][i]
+                    if isnan(val):
+                        continue
+                    else:
+                        # First search for the translate to symbol (->) in the log names, and make them available 
+                        # for the translator later.
+                        this_list = make_clean_list(table[key][i])
+                        this_cleaned_list = []
+                        for log_name in this_list:
+                            if '->' in log_name:
+                                translate_to_string += '{}, '.format(log_name)
+                                this_cleaned_list.append(log_name.split('->')[0].lower().strip())
+                            else: 
+                                this_cleaned_list.append(log_name.lower())
+                        for log_name in this_cleaned_list:
+                            log_dict[log_name] = key
+                temp_dict['logs'] = log_dict
+                if len(translate_to_string) == 0:
+                    temp_dict['Translate log names'] = None
+                else: 
+                    temp_dict['Translate log names'] = translate_to_string.rstrip(', ')
+            # avoid las file names which aren't correctly given as strings
+            if not isinstance(table['las file'][i], str):
+                temp_file = False
+            else:
+                temp_file = test_file_path(table['las file'][i], working_dir)
+            if temp_file is False:
+                warn_txt = 'Warning, las file {} for well {} does not exist'.format(
+                    table['las file'][i], ans)
+                logger.warning(warn_txt)
+                raise Warning(warn_txt)
+            result[test_file_path(table['las file'][i], working_dir)] = temp_dict
+    return result
+
+                
 def project_wells(filename, working_dir):
     """
     Returns a dictionary containing the requested wells from the project excel table
@@ -178,7 +262,7 @@ def project_wells(filename, working_dir):
     result = {}
     selected_wells = get_selected_wells(filename)
     sheet_name = 'Well logs'
-    table = pd.read_excel(filename, header=1, sheet_name=sheet_name)
+    table = pd.read_excel(filename, header=1, sheet_name=sheet_name, engine='openpyxl')
     for i, ans in enumerate(table['Given well name']):
         # skip empty rows
         if not isinstance(ans, str):
@@ -210,6 +294,12 @@ def project_wells(filename, working_dir):
                     else:
                         this_list = make_clean_list(table[key][i], small_cap=True)
                         for log_name in this_list:
+                            if '->' in log_name:
+                                error_txt = \
+                                    "Log name {} contain 'Translate to' symbol, ".format(log_name) + \
+                                    'new version of project_wells must be used'
+                                logger.warning(error_txt)
+                                raise IOError(error_txt)
                             log_dict[log_name] = key
                 temp_dict['logs'] = log_dict
             # avoid las file names which aren't correctly given as strings
@@ -237,7 +327,7 @@ def get_selected_wells(filename):
     """""
     selected_wells = []
     sheet_name = 'Well settings'
-    table = pd.read_excel(filename, header=1, sheet_name=sheet_name)
+    table = pd.read_excel(filename, header=1, sheet_name=sheet_name, engine='openpyxl')
     for i, ans in enumerate(table['Use']):
         # skip empty rows
         if not isinstance(ans, str):
@@ -329,7 +419,7 @@ def project_wellpath_info(filename):
     result = {}
     table = None
     try:
-        table = pd.read_excel(filename, header=1, sheet_name='Well paths')
+        table = pd.read_excel(filename, header=1, sheet_name='Well paths', engine='openpyxl')
     except ValueError:
         raise
     except Exception as e:
@@ -353,7 +443,7 @@ def project_wellpath_info(filename):
 
 
 def project_templates(filename):
-    table = pd.read_excel(filename, header=1, sheet_name='Templates')
+    table = pd.read_excel(filename, header=1, sheet_name='Templates', engine='openpyxl')
     result = {}
     for i, ans in enumerate(table['Log type']):
         if not isinstance(ans, str):
@@ -365,7 +455,7 @@ def project_templates(filename):
         result[ans]['full_name'] = ans
 
     # Also add the well settings
-    table = pd.read_excel(filename, header=1, sheet_name='Well settings')
+    table = pd.read_excel(filename, header=1, sheet_name='Well settings', engine='openpyxl')
     for i, ans in enumerate(table['Given well name']):
         if not isinstance(ans, str):
             continue
@@ -377,7 +467,7 @@ def project_templates(filename):
 
 
 def project_working_intervals(filename):
-    table = pd.read_excel(filename, header=4, sheet_name='Working intervals')
+    table = pd.read_excel(filename, header=4, sheet_name='Working intervals', engine='openpyxl')
     result = {}
     return return_dict_from_tops(table, 'Given well name', 'Interval name', 'Top depth', include_base='Base depth')
 
@@ -652,7 +742,7 @@ def read_rokdoc_tops(filename, header=4, top=True, zstick='md', only_these_wells
         key_name = None
         NotImplementedError('ZSTICK = {} is not implemented'.format(zstick))
 
-    tops = pd.read_excel(filename, header=header)
+    tops = pd.read_excel(filename, header=header, engine='openpyxl')
     return return_dict_from_tops(tops, 'Well Name', 'Horizon', key_name, only_these_wells=only_these_wells)
 
 
@@ -675,7 +765,7 @@ def read_npd_tops(filename, header=None, top=True, zstick='md', only_these_wells
     else:
         key_name = 'Bottom depth [m]'
 
-    tops = pd.read_excel(filename)
+    tops = pd.read_excel(filename, engine='openpyxl')
     return return_dict_from_tops(tops, 'Wellbore name', 'Lithostrat. unit', key_name, only_these_wells=only_these_wells)
 
 
@@ -688,7 +778,7 @@ def read_petrel_tops(filename, header=None, top=True, zstick='md', only_these_we
     else:
         key_name = 'MD'
 
-    tops = pd.read_excel(filename)
+    tops = pd.read_excel(filename, engine='openpyxl')
     return return_dict_from_tops(tops, 'Well identifier', 'Surface', key_name, only_these_wells=only_these_wells)
 
 
