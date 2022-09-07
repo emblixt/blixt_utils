@@ -165,6 +165,190 @@ def read_petrel_wavelet(filename,
     return header, time, wavelet
 
 
+def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name):
+    """
+    Tries to read well path (deviation) OR checkshot data from an ASCII file in different formats and returns a
+    dictionary with the
+    different columns as key: value pairs.
+    AND a second dictionary with information about the data that's been added
+    :param project_table_name:
+        str
+        full path name to xlsx project table
+    :param well_name:
+        str
+        Given well name
+    :param sheet_name:
+        str
+        Name of the sheet in the xlsx project table from where to fetch the file information
+        Either "Checkshots" or "Well paths"
+    """
+    tmp = project_files_info(project_table_name, sheet_name)
+    if well_name not in tmp:
+        raise ValueError('Well {} not listed in {} sheet of {}'.format(
+            well_name, sheet_name, project_table_name
+        ))
+    kwargs = tmp[well_name]
+
+    filename = kwargs.pop('filename')
+    if filename is None:
+        info_txt = 'No filename specified, return None'
+        logger.info(info_txt)
+        print('WARNING: {}'.format(info_txt))
+        return None
+    file_format = kwargs.pop('file format')
+    if file_format.lower() not in ['well trace from petrel', 'general ascii', 'original survey points',
+                                   'petrel checkshot']:
+        raise IOError('Unknown file format {}'.format(file_format))
+
+    if file_format.lower() == 'well trace from petrel':
+        data = read_well_trace_from_petrel(filename)
+    elif file_format.lower() == 'original survey points':
+        data = read_original_survey_points(filename)
+    elif file_format.lower() == 'petrel checkshot':
+        data = read_petrel_checkshots(filename)[well_name]
+    elif file_format.lower() == 'general ascii':
+        data = read_general_ascii(filename, sheet_name, **kwargs)
+    else:
+        raise IOError('Missing valid file format specifier')
+
+    # convert from lists to arrays
+    if data is not None:
+        for key in list(data.keys()):
+            data[key] = np.array(data[key])
+
+    # For checkshots, convert time from ms to s
+    if sheet_name == "Checkshots":
+        if "time units" not in kwargs:
+            raise IOError("Units of time not provided in {} sheet of {}".format(sheet_name, project_table_name))
+        if kwargs["time units"] == "ms":
+            data["TWT"] = data["TWT"] / 1000.
+    return data, project_files_info(project_table_name, sheet_name)[well_name]
+
+
+def read_well_trace_from_petrel(filename):
+    """
+    Reads and returns the well path information from a well trace file from Petrel
+    :param filename:
+    :return:
+        dict
+        Dictionary with the MD, TVD and INCLINATION data
+    """
+    keys = None
+    data = None
+    with open(filename, 'r') as f:
+        for line in f.readlines():
+            if line[0] == '#':
+                continue
+            else:
+                if 'MD' in line[:20]:
+                    line = line.replace('INCL', 'INC')  # to match blixt_rp add_well_path() function
+                    keys = line.split()
+                    data = {x: [] for x in keys}
+                else:
+                    i = 0
+                    this_line_of_data = line.split()
+                    for key in keys:
+                        data[key].append(float(this_line_of_data[i]))
+                        i += 1
+    return data
+
+
+def read_original_survey_points(filename):
+    """
+    Reads and returns the well path information from an "original survey points" file
+    :param filename:
+    :return:
+        dict
+        Dictionary with the MD, TVD and INCLINATION data
+    """
+    data = None
+    keys = None
+    with open(filename, 'r') as f:
+        for line in f.readlines():
+            if line[:4] == 'MD  ':
+                line = line.replace('Inc', 'INC')
+                line = line.replace('TVD(RKB)', 'TVD')
+                keys = line.split()
+                data = {x: [] for x in keys}
+            elif line[0].isnumeric():
+                this_line_of_data = _split(line, 'space')
+                j = 0
+                for key in keys:
+                    data[key].append(this_line_of_data[j])
+                    j += 1
+
+    return data
+
+
+def read_general_ascii(filename, data_type, **kwargs):
+    """
+    Uses the information in kwargs to read an ASCII file with data stored in a "general" format
+    :param filename:
+        str
+        full path name of ASCII file with data
+    :param data_type:
+        str
+        Either "Checkshots" or "Well paths"
+    :param kwargs:
+        dict
+        Dictionary with information about how to interpret the general ascii file
+        Typically returned from the project_files_info() function
+    :return:
+        dict
+        Dictionary containing the data in the ascii file with each column of data sorted under a given key
+    """
+    data_line = int(kwargs.pop('data begins on line'))
+    separator = kwargs.pop('separator', 'space')
+    separator = separator.replace('"', '')
+    md_column = int(kwargs.pop('md column'))
+    if data_type == "Well paths":
+        tvd_column = int(kwargs.pop('tvd column'))
+        inclination_column = int(kwargs.pop('inclination column'))
+        data = {x: [] for x in ['TVD', 'MD', 'INC']}
+        with open(filename, 'r') as f:
+            i = 0
+            for line in f.readlines():
+                if i >= data_line - 1:
+                    # Skip empty lines!
+                    if len(line.strip().replace('\t', '')) == 0:
+                        continue
+                    this_line_of_data = _split(line, separator)
+                    data['MD'].append(this_line_of_data[md_column - 1])
+                    data['TVD'].append(this_line_of_data[tvd_column - 1])
+                    data['INC'].append(this_line_of_data[inclination_column - 1])
+                i += 1
+        return data
+    elif data_type == 'Checkshots':
+        sign_multiplier = None
+        time_column = None
+        owt_column = kwargs.pop('owt column')
+        twt_column = kwargs.pop('twt column')
+        if twt_column is None:
+            if owt_column is None:
+                raise IOError('Column number for both one-, and two-, way time are lacking')
+            else:
+                sign_multiplier = 2.
+                time_column = int(owt_column)
+        else:
+            sign_multiplier = 1.
+            time_column = int(twt_column)
+        data = {x: [] for x in ['MD', 'TWT']}
+        with open(filename, 'r') as f:
+            i = 0
+            for line in f.readlines():
+                if i >= data_line - 1:
+                    # Skip empty lines!
+                    if len(line.strip().replace('\t', '')) == 0:
+                        continue
+                    this_line_of_data = _split(line, separator)
+                    data['MD'].append(this_line_of_data[md_column - 1])
+                    data['TWT'].append(this_line_of_data[time_column - 1] * sign_multiplier)
+                i += 1
+        return data
+    else:
+        raise IOError('Unknown data type: {}'.format(data_type))
+
+
 def project_wells_new(filename, working_dir):
     """
     Returns a dictionary containing the requested wells from the project excel table
@@ -225,14 +409,14 @@ def project_wells_new(filename, working_dir):
                             if '->' in log_name:
                                 translate_to_string += '{}, '.format(log_name)
                                 this_cleaned_list.append(log_name.split('->')[0].lower().strip())
-                            else: 
+                            else:
                                 this_cleaned_list.append(log_name.lower())
                         for log_name in this_cleaned_list:
                             log_dict[log_name] = key
                 temp_dict['logs'] = log_dict
                 if len(translate_to_string) == 0:
                     temp_dict['Translate log names'] = None
-                else: 
+                else:
                     temp_dict['Translate log names'] = translate_to_string.rstrip(', ')
             # avoid las file names which aren't correctly given as strings
             if not isinstance(table['las file'][i], str):
@@ -415,11 +599,56 @@ def get_rename_logs_dict(well_table):
     return rename_logs
 
 
-def project_wellpath_info(filename):
+def project_files_info(filename, sheet_name):
+    """
+    Interprets a sheet in the project table for information about how to read General ASCII files or if data are
+    stored in predefined file formats
+    :param filename:
+        str
+        full path to the project table in excel format
+    :param sheet_name:
+        str
+        Name of the sheet from which the file format description is given
+    :return:
+        dict
+        Dictionary with information about how to read the checkshot or well path files for the wells that belongs to the project
+        The dictionary has the following keywords
+            :keyword 'filename:
+                string
+                Full path name of well path / deviation / checkshot file
+            :keyword 'file format':
+                string
+                Name of various well path formats, e.g.:
+                    "well trace from petrel"
+                    "original survey points"
+                    "petrel checkshot"
+                    "general ascii" for various formats
+            :keyword 'separator':
+                string
+                String used as separator between data values
+                if equal to 'space', any number of spaces is considered a separator
+                Not necessary if format is different from 'general ascii'
+            :keyword 'data begins on line'
+                float or int
+                Line number (starting with 1) of where the data section starts
+            :keyword 'tvd column':
+                int or float
+                Column number for TVD values (starting from 1)
+                Not necessary if format is different from 'general ascii'
+            :keyword 'md column':
+                int or float
+                Column number for MD values (starting from 1)
+                Not necessary if format is different from 'general ascii'
+            :keyword 'inclination column':
+                int or float
+                Column number for inclination values (starting from 1)
+                Not necessary if format is different from 'general ascii'
+
+    """
     result = {}
     table = None
     try:
-        table = pd.read_excel(filename, header=1, sheet_name='Well paths', engine='openpyxl')
+        table = pd.read_excel(filename, header=1, sheet_name=sheet_name, engine='openpyxl')
     except ValueError:
         raise
     except Exception as e:
@@ -782,7 +1011,7 @@ def read_petrel_tops(filename, header=None, top=True, zstick='md', only_these_we
     return return_dict_from_tops(tops, 'Well identifier', 'Surface', key_name, only_these_wells=only_these_wells)
 
 
-def write_tops(filename, tops_file, frmt, well_names=None, interval_names=None, sheet_name=None):
+def write_tops(filename, tops, frmt, well_names=None, interval_names=None, sheet_name=None):
     """
     Writes the tops to the excel file "filename", in the sheet name 'Working intervals'
     If "filename" exists, and is open, it raises a warning
@@ -792,10 +1021,10 @@ def write_tops(filename, tops_file, frmt, well_names=None, interval_names=None, 
         full pathname of excel file to write to.
         Assumes we're trying to write to the default project_table.xlsx, in the 'Working intervals' sheet.
 
-    :param tops_file:
-        str
-        dict
-        full pathname of file name containing the tops to read from.
+    :param tops:
+        str or dict
+        Either full pathname of file name containing the tops to read from.
+        or a dictionary with tops as returned from read_tops()
 
     :param frmt:
         str
@@ -803,6 +1032,7 @@ def write_tops(filename, tops_file, frmt, well_names=None, interval_names=None, 
         'petrel'
         'npd'
         'rokdoc'
+        Not necessary when writing tops that already have been read into "tops"
 
     :param well_names:
         list
@@ -841,8 +1071,12 @@ def write_tops(filename, tops_file, frmt, well_names=None, interval_names=None, 
 
     # modify first line
     t0 = datetime.now().isoformat()
+    if not isinstance(tops, str):
+        source_string = 'imported dictionary'
+    else:
+        source_string = tops
     ws['A1'] = 'Created by {}, at {}, on {} based on tops in {}'.format(
-        getpass.getuser(), socket.gethostname(), t0, tops_file)
+        getpass.getuser(), socket.gethostname(), t0, source_string)
 
     # test if fifth row exists
     if ws[5][0].value is None:
@@ -851,7 +1085,8 @@ def write_tops(filename, tops_file, frmt, well_names=None, interval_names=None, 
             ws.cell(5, j+1).value = val
 
     # read in the tops
-    tops = read_tops(tops_file, frmt=frmt)
+    if isinstance(tops, str):
+        tops = read_tops(tops, frmt=frmt)
 
     # start appending data
     if well_names is None:
@@ -890,7 +1125,6 @@ def write_tops(filename, tops_file, frmt, well_names=None, interval_names=None, 
                 ct.remove('TD')
         except ValueError as ve:
             print(ve)
-
 
         for i in range(len(ct)-1):
             ws.append(['', wname, ct[i], tops[wname][ct[i]], tops[wname][ct[i+1]]])
@@ -948,6 +1182,10 @@ def read_petrel_checkshots(filename, only_these_wells=None):
                 else:
                     for j, key in enumerate(keys):
                         checkshots[this_well_name][key].append(my_float(data[j]))
+
+    for this_well_name in list(checkshots.keys()):
+        if 'TWT picked' in list(checkshots[this_well_name].keys()):
+            checkshots[this_well_name]['TWT'] = checkshots[this_well_name].pop('TWT picked')
 
     return checkshots
 
@@ -1578,137 +1816,6 @@ def interpret_cutoffs_string(cutoffs_string):
         return return_dict
 
 
-def read_wellpath(**kwargs):
-    """
-    Tries to read well path (deviation) data from an ASCII file in different formats and returns a dictionary with the 
-    different columns as key: value pairs.
-    The kwarg dictionary is typically returned from 'project_wellpath_info(project_table.xlsx)[<WELL NAME>]'
-    
-    :keyword 'well path file:
-        string
-        Full path name of well path / deviation file
-    :keyword 'file format':
-        string
-        Name of various well path formats, e.g.:
-            "well trace from petrel"
-            "original survey points"
-            "general ascii" for various formats
-    :keyword 'separator':
-        string
-        String used as separator between data values
-        if equal to 'space', any number of spaces is considered a separator
-        Not necessary if format is different from 'general ascii'
-    :keyword 'data begins on line'
-        float or int
-        Line number (starting with 1) of where the data section starts
-    :keyword 'tvd column':
-        string
-        Column number for TVD values (starting from 1)
-        Not necessary if format is different from 'general ascii'
-    :keyword 'md column':
-        string
-        Column number for MD values (starting from 1)
-        Not necessary if format is different from 'general ascii'
-    :keyword 'inclination column':
-        string
-        Column number for inclination values (starting from 1)
-        Not necessary if format is different from 'general ascii'
-    """
-    def _split(_string, _separator):
-        if _separator == 'space':
-            _this_list = _string.split()
-        elif _separator == 'tab':
-            _this_list = _string.split('\t')
-        else:
-            _this_list = _string.split(_separator)
-        clean_list = []
-        for item in _this_list:
-            if item == '':
-                continue
-            # Only convert pure numbers, and decimal numbers, to float
-            if item.strip().replace('.', '', 1).replace('-', '', 1).isdigit():
-                clean_list.append(float(item.strip()))
-            else:
-                clean_list.append(item.strip().replace('"', ''))
-        return clean_list
-
-    keys = None
-    data = None
-    data_section = False
-    header_section = False
-    filename = kwargs.pop('well path file')
-    if filename is None:
-        info_txt = 'No well path file specified, return None'
-        logger.info(info_txt)
-        print('WARNING: {}'.format(info_txt))
-        return None
-    file_format = kwargs.pop('file format')
-    if file_format is None:
-        file_format = 'well trace from petrel'
-    elif file_format.lower() not in ['well trace from petrel', 'general ascii', 'original survey points']:
-        raise IOError('Unknown file format {}'.format(file_format))
-
-    if file_format.lower() == 'well trace from petrel':
-        with open(filename, 'r') as f:
-            for line in f.readlines():
-                if line[0] == '#':
-                    header_section = True
-                    continue
-                else:
-                    if 'MD' in line[:20]:
-                        line = line.replace('INCL', 'INC')  # to match blixt_rp add_well_path() function
-                        keys = line.split()
-                        data = {x: [] for x in keys}
-                    else:
-                        i = 0
-                        this_line_of_data = line.split()
-                        for key in keys:
-                            data[key].append(float(this_line_of_data[i]))
-                            i += 1
-    elif file_format.lower() == 'general ascii':
-        data_line = int(kwargs.pop('data begins on line'))
-        separator = kwargs.pop('separator', 'space')
-        separator = separator.replace('"', '')
-        tvd_column = int(kwargs.pop('tvd column'))
-        md_column = int(kwargs.pop('md column'))
-        inclination_column = int(kwargs.pop('inclination column'))
-        data = {x: [] for x in ['TVD', 'MD', 'INC']}
-        with open(filename, 'r') as f:
-            i = 0
-            for line in f.readlines():
-                if i >= data_line - 1:
-                    # Skip empty lines!
-                    if len(line.strip().replace('\t', '')) == 0:
-                        continue
-                    this_line_of_data = _split(line, separator)
-                    data['MD'].append(this_line_of_data[md_column - 1])
-                    data['TVD'].append(this_line_of_data[tvd_column - 1])
-                    data['INC'].append(this_line_of_data[inclination_column - 1])
-                i += 1
-    elif file_format.lower() == 'original survey points':
-        with open(filename, 'r') as f:
-            for line in f.readlines():
-                if line[:4] == 'MD  ':
-                    line = line.replace('Inc', 'INC')
-                    line = line.replace('TVD(RKB)', 'TVD')
-                    keys = line.split()
-                    data = {x: [] for x in keys}
-                elif line[0].isnumeric():
-                    this_line_of_data = _split(line, 'space')
-                    j = 0
-                    for key in keys:
-                        data[key].append(this_line_of_data[j])
-                        j += 1
-    else:
-        raise IOError('Missing valid file format specifier')
-
-    # convert from lists to arrays
-    if data is not None:
-        for key in list(data.keys()):
-            data[key] = np.array(data[key])
-    return data
-
-
 def my_float(string):
     try:
         return float(string)
@@ -1716,8 +1823,27 @@ def my_float(string):
         return string
 
 
+def _split(_string, _separator):
+    if _separator == 'space':
+        _this_list = _string.split()
+    elif _separator == 'tab':
+        _this_list = _string.split('\t')
+    else:
+        _this_list = _string.split(_separator)
+    clean_list = []
+    for item in _this_list:
+        if item == '':
+            continue
+        # Only convert pure numbers, and decimal numbers, to float
+        if item.strip().replace('.', '', 1).replace('-', '', 1).isdigit():
+            clean_list.append(float(item.strip()))
+        else:
+            clean_list.append(item.strip().replace('"', ''))
+    return clean_list
+
+
 if __name__ == '__main__':
-    filename = 'H:\\My Drive\\GeoMind\\Clients\\AkerBP\\PL1124 Nise SRC\\PL1124_project_table.xlsx'
-    working_dir = 'H:\\My Drive\\GeoMind\\Clients\\AkerBP\\PL1124 Nise SRC'
-    wells = project_wells(filename, working_dir)
-    print(list(wells.keys()))
+    _filename = 'H:\\My Drive\\GeoMind\\Clients\\AkerBP\\PL1124 Nise SRC\\PL1124_project_table.xlsx'
+    _working_dir = 'H:\\My Drive\\GeoMind\\Clients\\AkerBP\\PL1124 Nise SRC'
+    _wells = project_wells(_filename, _working_dir)
+    print(list(_wells.keys()))
