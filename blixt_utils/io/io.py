@@ -189,9 +189,14 @@ def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name):
         ))
     kwargs = tmp[well_name]
 
+    if sheet_name == 'Well paths':
+        path_type = kwargs.pop('type')
+        if path_type == 'Vertical':
+            return None, project_files_info(project_table_name, sheet_name)[well_name]
+
     filename = kwargs.pop('filename')
     if filename is None:
-        info_txt = 'No filename specified, return None'
+        info_txt = 'No filename specified for {}, return None'.format(well_name)
         logger.info(info_txt)
         print('WARNING: {}'.format(info_txt))
         return None
