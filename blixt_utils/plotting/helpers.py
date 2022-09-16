@@ -261,6 +261,8 @@ def header_plot(ax, limits, legends, styles, title=None):
     ax.get_xaxis().set_ticks([])
     ax.set_ylim(0.5, 8)
     ax.get_yaxis().set_ticks([])
+    if title is not None:
+        ax.text(1.5, 0.6, title, ha='center')
 
 
 def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',

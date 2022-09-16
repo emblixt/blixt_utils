@@ -174,3 +174,19 @@ def log_table_in_smallcaps(log_table):
         else:
             log_table[key] = log_table[key].lower()
     return log_table
+
+
+def mask_string(cutoffs, wi_name):
+    msk_str = ''
+    for key in list(cutoffs.keys()):
+        msk_str += '{}: {} [{}]'.format(
+            key, cutoffs[key][0], ', '.join([str(m) for m in cutoffs[key][1]])) if \
+            isinstance(cutoffs[key][1], list) else \
+            '{}: {} {}, '.format(
+                key, cutoffs[key][0], cutoffs[key][1])
+    if (len(msk_str) > 2) and (msk_str[-2:] == ', '):
+        msk_str = msk_str.rstrip(', ')
+    if wi_name is not None:
+        msk_str += ' Working interval: {}'.format(wi_name)
+    return msk_str
+

@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.optimize import least_squares
+import matplotlib.pyplot as plt
 
 
 def residuals(x, t, y, target_function=None, weight=None, kwargs=None):
@@ -58,3 +60,39 @@ def residuals(x, t, y, target_function=None, weight=None, kwargs=None):
     else:  # assume standard 1D case
         return weight * (target_function(t1, *x, **kwargs) - y)
 
+
+def play_with_data_fit():
+    fig, ax = plt.subplots()
+
+    # The linear target function we would like to fit the data:
+    def linear_function(_t, _a, _b):
+        return _a*_t + _b
+
+    # Data
+    x = [-0.2, 5]  # True parameters of the starting linear function
+    # Perturb the linear function with noise
+    t = np.linspace(0, 10, 100) + np.random.random(100)  # the independent "time" variable
+    y = linear_function(t, *x) + np.random.random(100) - 0.5  # The "observed" data
+    # Add data to the dataset through append (out of curiosity)
+    t = np.append(t, np.linspace(0, 10, 100) + np.random.random(100))
+    y = np.append(y, linear_function(np.linspace(0, 10, 100), *x) + np.random.random(100) - 0.5)
+
+    new_t = np.linspace(0, 10)  # the new independent "time" variable we use to plot the fitted function
+
+    ax.scatter(t, y)
+
+    # initial guess of parameters to the target function
+    x0 = [1., 1.]
+
+    # least_squares fit with the residual function using the linear function to calculate the error
+    res = least_squares(residuals, x0, args=(t, y), kwargs={'target_function': linear_function}, verbose=2)
+    res2 = least_squares(residuals, x0, args=(t, y), kwargs={'target_function': linear_function},
+                         loss='cauchy', verbose=2)
+
+    ax.plot(new_t, linear_function(new_t, *x), new_t, linear_function(new_t, *res.x), new_t, linear_function(new_t, *res2.x))
+
+    plt.show()
+
+
+if __name__ == '__main__':
+    play_with_data_fit()
