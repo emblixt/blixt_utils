@@ -61,12 +61,13 @@ def residuals(x, t, y, target_function=None, weight=None, kwargs=None):
         return weight * (target_function(t1, *x, **kwargs) - y)
 
 
+def linear_function(_t, _a, _b):
+    # The linear fitting function
+    return _a*_t + _b
+
+
 def play_with_data_fit():
     fig, ax = plt.subplots()
-
-    # The linear target function we would like to fit the data:
-    def linear_function(_t, _a, _b):
-        return _a*_t + _b
 
     # Data
     x = [-0.2, 5]  # True parameters of the starting linear function
@@ -81,7 +82,7 @@ def play_with_data_fit():
 
     ax.scatter(t, y)
 
-    # initial guess of parameters to the target function
+    # initial guess of parameters to the fitting function
     x0 = [1., 1.]
 
     # least_squares fit with the residual function using the linear function to calculate the error

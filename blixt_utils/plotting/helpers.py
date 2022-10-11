@@ -335,6 +335,120 @@ def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',
         ax.set_ylim(ax.get_ylim()[::-1])
 
 
+def chi_rotation_plot(eeis, y, chi_angles, eei_limits, line_colors=None, legends=None, reference_log=None,
+                      reference_template=None):
+    """
+    Plot the EEI for different elastic logs (typically brine, gas, oil) for different chi angles so that it is easy
+    to see at which chi angles we have the largest sensitivity to fluids and lithology
+    Args:
+        eeis:
+            numpy.ndarray of size (K, M, N)
+            Array containing the extended elastic impedance for M different chi angles, for the N different set of logs
+        y
+            numpy.ndarray of size K
+            The common y axis for all eeis
+        chi_angles:
+            list, length M
+            List of floats specifying the Chi angles (deg) used
+        eei_limits:
+            list, of length M
+            Each item of eei_limits is a tuple or list of length N
+            Each of these sub-items is a list with min and max values for the EEI at that specific
+            chi angle and for each set of elastic logs
+        line_colors:
+            list, length N
+            M item long list of strings of color names used to separate the different eei's (common for all chi angles)
+            Default is ['b', 'g', 'r']
+        legends
+            list
+            List of the names of the different eei's (common for all chi angles)
+            Default is ['Brine', 'Oil', 'Gas']
+        reference_log:
+            numpy.ndarray of length K
+            Reference well log that is plotted on a separate axes (when provided) which make it easier for the user
+            to orient themself in the lithostratigraphy. Preferably a gamma ray log
+        reference_template:
+            dict
+            Dictionary that contains the settings for plotting the reference log.
+            Must contain the following key words:
+                'line width' for the line width
+                'line color' for the line color
+                'line style' for the line style
+                'min' minimum plot range value
+                'max' maximum plot range value
+                'unit' Units used
+                'full_name' Name of the reference log
+
+    Returns:
+        fig:
+            Matplotlib.pyplot.Figure object
+        axes:
+            list of Matplotlib.pyplot.Axes objects, axes with eei data, one for each chi angles
+        header_axes
+            list of Matplotlib.pyplot.Axes objects, axes with header, one for each chi angles
+
+    """
+    k, m, n = eeis.shape
+    if len(y) != k:
+        raise IOError('Length of y coordinate ({}) is different from length of eei ({})'.format(
+            len(y), k
+        ))
+    if line_colors is None:
+        line_colors = ['b', 'g', 'r']
+    if legends is None:
+        legends = ['Brine', 'Oil', 'Gas']
+    if (len(line_colors) != n) or (len(legends) != n):
+        raise IOError('Number of colors ({}) or legends ({}) does not match number of logs ({})'.format(
+            len(line_colors), len(legends), n
+        ))
+
+    if reference_log is not None:
+        if reference_template is None:
+            raise IOError('The reference log is lacking its template')
+
+    styles = [{'lw': 1.,
+               'color': line_colors[i],
+               'ls': '-'} for i in range(len(line_colors))]
+
+    # set up plot window
+    fig = plt.figure(figsize=(20, 10))
+    n_cols = len(chi_angles)
+    if reference_log is not None:
+        n_cols += 1  # add an extra column for the reference log
+    n_rows = 2
+    height_ratios = [1, 5]
+    spec = fig.add_gridspec(nrows=n_rows, ncols=n_cols,
+                            height_ratios=height_ratios,
+                            hspace=0., wspace=0.,
+                            left=0.05, bottom=0.03, right=0.98, top=0.96)
+    header_axes = []
+    axes = []
+    for i in range(n_cols):
+        header_axes.append(fig.add_subplot(spec[0, i]))
+        axes.append(fig.add_subplot(spec[1, i]))
+
+    # Start plotting data
+    if reference_log is not None:
+        this_style = [{'lw': reference_template['line width'],
+                       'color': reference_template['line color'],
+                       'ls': reference_template['line style']}]
+        xlims = axis_plot(axes[0], y, [reference_log], [[reference_template['min'], reference_template['max']]],
+                          this_style, ylim=[y[0], y[-1]])
+        header_plot(header_axes[0], xlims, ['{} [{}]'.format(reference_template['full_name'],
+                                                             reference_template['unit'])], this_style)
+    for i, chi in enumerate(chi_angles):
+        if reference_log is not None:
+            axes_i = i + 1
+        else:
+            axes_i = i
+        xlims = axis_plot(axes[axes_i], y, [eeis[:, i, j] for j in range(n)],
+                          eei_limits[i], styles, ylim=[y[0], y[-1]], yticks=axes_i==0)
+
+        header_plot(header_axes[axes_i], xlims, legends, styles, title='Chi {:.0f}$^\circ$'.format(chi))
+
+    return fig, axes, header_axes
+
+
 def set_lim(ax, limits, axis=None):
     """
     Convinience function to set the x axis limits. Interprets None as autoscale

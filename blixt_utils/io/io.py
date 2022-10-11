@@ -1134,8 +1134,149 @@ def write_tops(filename, tops, frmt, well_names=None, interval_names=None, sheet
         for i in range(len(ct)-1):
             ws.append(['', wname, ct[i], tops[wname][ct[i]], tops[wname][ct[i+1]]])
 
+    wb.save(filename)
+
+
+def write_regression(filename, reg_params, log_name, well_name, interval_name, reg_type, note=None, sheet_name=None):
+    """
+    Writes regression (a function optimized to fit some data) to the excel file "filename",
+    in the sheet name 'Regressions'
+    If "filename" exists, and is open, it raises a warning
+
+    :param filename:
+        str
+        full pathname of excel file to write to.
+        Assumes we're trying to write to the default project_table.xlsx, in the 'Working intervals' sheet.
+
+    :param reg_params:
+        list
+        A list of parameters, floats, of the regression function.
+        E.G. for a linear regression f(t) = A x t + B it will be a two item list [A, B]
+
+    :param log_name:
+        str
+        Name of the log the regression is calculated on
+
+    :param well_name:
+        str
+        Name of the well for which the regression is done
+        if empty or None, it is valid for all wells
+
+    :param reg_type:
+        str
+        Type of regression function.
+        E.G. for a linear regression, it should be 'Linear'
+
+    :param interval_name:
+        str
+        Name of the working interval in which the regression is calculated
+        if None, all intervals are saved
+
+    :param note:
+        str
+        Note which describes the regression
+
+    :param sheet_name:
+        str
+        Name of the sheet the above information will be written to in the filename excel sheet.
+        If None, the default "Regressions" work sheet will be used
+
+    :return:
+    """
+    allowed_reg_types = ['Linear']
+    if reg_type.lower() not in [xx.lower() for xx in allowed_reg_types]:
+        warn_txt = 'The given regression type,{}, is not one of the recognized types: {}'.format(
+            reg_type, ', '.join(allowed_reg_types)
+        )
+        logger.warning(warn_txt)
+        raise IOError(warn_txt)
+    if sheet_name is None:
+        sheet_name = 'Regressions'
+    if well_name is None or len(well_name) == 0:
+        well_name = 'All'
+    if interval_name is None or len(interval_name) == 0:
+        interval_name = 'All'
+    if note is None:
+        note = ''
+
+    # test write access
+    taccs = check_if_excelfile_writable(filename)
+    if not taccs:
+        warn_txt = 'Not possible to write to {}'.format(filename)
+        return
+
+    if not os.path.isfile(filename):
+        wb = Workbook()
+    else:
+        wb = load_workbook(filename)
+
+    if sheet_name not in wb.sheetnames:
+        print('Creating new sheet')
+        ws = wb.create_sheet(sheet_name, -1)
+    else:
+        print('Opening existing sheet')
+        ws = wb[sheet_name]
+
+    # test if worksheet contains data
+    if ws[2][0].value is None:
+        for j, val in enumerate(['Log name', 'Given well name', 'Type', 'Interval name', 'Date', 'Note',
+                                 'A', 'B', 'C', 'D', 'E', 'F', 'G']):
+            ws.cell(1, j+1).value = val
+
+    # start appending data
+    t0 = datetime.now().isoformat()
+    ws.append([log_name, well_name, interval_name, reg_type, t0, note, *reg_params])
 
     wb.save(filename)
+
+
+def read_regressions(filename, sheet_name=None):
+    """
+    Reads the excel file 'filename', working sheet 'sheet_name' and returns all regression functions described there
+    Args:
+        filename:
+            str
+            Full path name of excel sheet
+        sheet_name:
+            str
+            Name of work sheet which contains the regressions
+            Default is 'Regressions'
+
+    Returns:
+        dict
+        Dictionary with all regressions sorted by log name, well name, interval name and regression type
+        Non-unique combinations of log name, well name and interval name are overwritten
+    """
+    if sheet_name is None:
+        sheet_name = 'Regressions'
+
+    table = pd.read_excel(filename, header=1, sheet_name=sheet_name, engine='openpyxl')
+
+    # Create dictionary to contain all regressions
+    result = {}
+    for i, log_name in enumerate(table['Log name']):
+        this_well_name = table['Given well name'][i]
+        this_interval_name = table['Interval name'][i]
+        this_type = table['Type'][i]
+
+        if log_name not in list(result.keys()):
+            result[log_name] = {}
+        if this_well_name not in list(result[log_name].keys()):
+            result[log_name][this_well_name] = {}
+        if this_interval_name not in list(result[log_name][this_well_name].keys()):
+            result[log_name][this_well_name][this_interval_name] = {}
+        if this_type not in list(result[log_name][this_well_name][this_interval_name].keys()):
+            result[log_name][this_well_name][this_interval_name][this_type] = {}
+
+        result[log_name][this_well_name][this_interval_name][this_type]['Date'] = table['Date'][i]
+        result[log_name][this_well_name][this_interval_name][this_type]['Note'] = table['Note'][i]
+        these_params = []
+        for column in ['A', 'B', 'C', 'D', 'F', 'G']:
+            if not np.isnan(table[column][i]):
+                these_params.append(table[column][i])
+        result[log_name][this_well_name][this_interval_name][this_type]['Params'] = these_params
+
+    return result
 
 
 def read_petrel_checkshots(filename, only_these_wells=None):
