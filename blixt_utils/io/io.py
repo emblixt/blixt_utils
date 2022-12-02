@@ -1707,27 +1707,27 @@ def well_reader(lines, file_format='las'):
                 pass
         return x
 
-    def get_current_section(line):
-        if '~V' in line : return 'version'
-        if '~W' in line: return 'well_info'
-        if '~C' in line: return 'curve'
-        if '~P' in line: return 'parameter'
-        if '~O' in line: return 'other'
-        if '~A' in line: return 'data'
+    def get_current_section(_line):
+        if '~V' in _line: return 'version'
+        if '~W' in _line: return 'well_info'
+        if '~C' in _line: return 'curve'
+        if '~P' in _line: return 'parameter'
+        if '~O' in _line: return 'other'
+        if '~A' in _line: return 'data'
         # ~ Unregistered section
         return None
 
-    def add_section(well_dict, section, mnem, content):
-        if section == "data":
-            if isinstance(content, list):
-                well_dict[section][mnem] = content
+    def add_section(_well_dict, _section, _mnem, _content):
+        if _section == "data":
+            if isinstance(_content, list):
+                _well_dict[_section][_mnem] = _content
             else:
-                well_dict[section][mnem].append(content)
-        elif section == "other":
-            well_dict[section] += "".join(str(content).strip())
+                _well_dict[_section][_mnem].append(_content)
+        elif _section == "other":
+            _well_dict[_section] += "".join(str(_content).strip())
         else:
-            well_dict[section][mnem] = content
-        return well_dict
+            _well_dict[_section][_mnem] = _content
+        return _well_dict
 
     generated_keys = []
     null_val = None
