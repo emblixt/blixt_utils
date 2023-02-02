@@ -21,16 +21,24 @@ def convert(in_data, from_unit=None, to_unit=None):
     :return:
         np.array
     """
-    # Test if units are specified
-    if from_unit is None:
-        logger.warning("No 'from_unit' specified, conversion failed")
-        return
-    elif to_unit is None:
-        logger.warning("No 'to_unit' specified, conversion failed")
-        return
-
+    # Test if units are specified and if they differ
     success = True
-    # Start converting
+    if from_unit is None:
+        wrn_txt = "No 'from_unit' specified. No conversion done"
+        success = False
+    elif to_unit is None:
+        wrn_txt = "No 'to_unit' specified. No conversion done"
+        success = False
+    elif from_unit == to_unit:
+        wrn_txt = "'from_unit': {}, equals 'to_unit': {}. No conversion done".format(from_unit, to_unit)
+        success = False
+    if not success:
+        print(wrn_txt)
+        logger.warning(wrn_txt)
+        return in_data
+
+    # When units are specified and different, try use them for converting
+    success = True
     if from_unit == 'ft' or from_unit == 'feet':
         if to_unit == 'm':
             return in_data / m_to_ft
@@ -89,9 +97,22 @@ def convert(in_data, from_unit=None, to_unit=None):
         else:
             success = False
 
+    if from_unit == 'ms':
+        if to_unit == 's':
+            return in_data / 1000.
+        else:
+            success = False
+
+    if from_unit == 's':
+        if to_unit == 'ms':
+            return in_data * 1000.
+        else:
+            success = False
+
     if not success:
-        wrn_txt = "No valid combination of units specified (from {} to {}), conversion failed".format(
+        wrn_txt = "No valid combination of units specified (from {} to {}). No conversion done".format(
             from_unit, to_unit)
         logger.warning(wrn_txt)
-        raise Warning(wrn_txt)
+        print(wrn_txt)
+        return in_data
 
