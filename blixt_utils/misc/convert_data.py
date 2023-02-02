@@ -19,7 +19,7 @@ def convert(in_data, from_unit=None, to_unit=None):
     :param to_unit:
         str
     :return:
-        np.array
+        Bool, np.array
     """
     # Test if units are specified and if they differ
     success = True
@@ -35,21 +35,21 @@ def convert(in_data, from_unit=None, to_unit=None):
     if not success:
         print(wrn_txt)
         logger.warning(wrn_txt)
-        return in_data
+        return success, in_data
 
     # When units are specified and different, try use them for converting
     success = True
     if from_unit == 'ft' or from_unit == 'feet':
         if to_unit == 'm':
-            return in_data / m_to_ft
+            return success, in_data / m_to_ft
         elif to_unit == 'km':
-            return in_data / (1000. * m_to_ft)
+            return success, in_data / (1000. * m_to_ft)
         else:
             success = False
 
     if from_unit == 'm':
         if to_unit == 'ft':
-            return in_data * m_to_ft
+            return success, in_data * m_to_ft
         else:
             success = False
 
@@ -58,54 +58,54 @@ def convert(in_data, from_unit=None, to_unit=None):
         #in_data[in_data < 20.] = np.nan
         #in_data[in_data > 300.] = np.nan
         if to_unit == 'm/s':
-            return 1. / (m_to_ft * 1.E-6 * in_data)
+            return success, 1. / (m_to_ft * 1.E-6 * in_data)
         elif to_unit == 'km/s':
-            return 1. / (m_to_ft * 1.E-3 * in_data)
+            return success, 1. / (m_to_ft * 1.E-3 * in_data)
         else:
             success = False
 
     if from_unit == 'g/cm3':
         if to_unit == 'kg/m3':
-            return 1000. * in_data
+            return success, 1000. * in_data
         elif to_unit == 'mpa/m':
-            return 0.0098 * in_data
+            return success, 0.0098 * in_data
         else:
             success = False
 
     if from_unit == 'bar':
         if to_unit == 'mpa':
             # return 0.1 * in_data
-            return bar_to_mpa * in_data
+            return success, bar_to_mpa * in_data
         else:
             success = False
 
     if from_unit == 'mpa':
         if to_unit == 'bar':
-            return in_data / bar_to_mpa
+            return success, in_data / bar_to_mpa
         else:
             success = False
 
     if from_unit == 'bar':
         if to_unit == 'gpa':
-            return bar_to_gpa * in_data
+            return success, bar_to_gpa * in_data
         else:
             success = False
 
     if from_unit == 'gpa':
         if to_unit == 'bar':
-            return in_data / bar_to_gpa
+            return success, in_data / bar_to_gpa
         else:
             success = False
 
     if from_unit == 'ms':
         if to_unit == 's':
-            return in_data / 1000.
+            return success, in_data / 1000.
         else:
             success = False
 
     if from_unit == 's':
         if to_unit == 'ms':
-            return in_data * 1000.
+            return success, in_data * 1000.
         else:
             success = False
 
@@ -114,5 +114,5 @@ def convert(in_data, from_unit=None, to_unit=None):
             from_unit, to_unit)
         logger.warning(wrn_txt)
         print(wrn_txt)
-        return in_data
+        return success, in_data
 
