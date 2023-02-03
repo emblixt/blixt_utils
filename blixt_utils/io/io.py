@@ -181,12 +181,17 @@ def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name):
         str
         Name of the sheet in the xlsx project table from where to fetch the file information
         Either "Checkshots" or "Well paths"
+    :return:
+        dict, dict
+        A dictionary with data, and one with information
     """
     tmp = project_files_info(project_table_name, sheet_name)
     if well_name not in tmp:
-        raise ValueError('Well {} not listed in {} sheet of {}'.format(
-            well_name, sheet_name, project_table_name
-        ))
+        wrn_txt = 'Well {} not listed in {} sheet of {}'.format(well_name, sheet_name, project_table_name)
+        print(wrn_txt)
+        logger.warning(wrn_txt)
+        return None, None
+
     kwargs = tmp[well_name]
 
     if sheet_name == 'Well paths':
