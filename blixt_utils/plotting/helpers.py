@@ -137,6 +137,101 @@ def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
     return xlims
 
 
+def deltalogr_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
+    """
+    Plot DeltaLogR in one subplot
+
+    From Neal Morgan
+    Plot AC [us/ft] on 200-0 scale
+    Plot RDEP [Ohm m] with four decades of log scale (0.2 – 2000, 0.1-1000, 0.01-100, 0.001-10)
+
+    Change the RDEP scale until logs overlay in a water filled zone which has no organic matter (source rock or coal)
+    DLOGR is related to the Total Organic Carbon (TOC) and Level of Maturity  of the source rock (LOM)
+
+    DLOGR = log10(RDEP/RDEPbaseline) + 0.02(AC-ACbaseline)
+
+    TOC = DLOGR*10(2.297-0.1688*LOM)
+
+    Good indicator of source rock and conventional hydrocarbon filled reservoirs
+
+    The level of maturity LOM can be estimated (guessed) from the AC-RDEP separation
+    LOM =7 onset of maturity for oil-prone kerogen
+    LOM=12 onset of overmaturity for oil-rone kerogen
+
+    :param ax:
+        matplotlib axes object
+    :param y:
+        numpy ndarray
+        The depth data of length N
+    :param data:
+        list
+        list of two ndarrays, each of length N.
+        First contains the Sonic, AC, in us/ft, the second the deep resistivity, RDEP, in Ohm m.
+
+    :param limits:
+        list
+        list of lists, each with min, max value of respective curve, e.g.
+        [[200, 0], [0.2, 2000]]
+    :param styles:
+        list
+        list of dictionaries that defines the plotting styles of the data
+        E.G. [{'lw':1, 'color':'k', 'ls':'-'}, {'lw':2, 'color':'r', 'ls':'-'}, ... ]
+    :param yticks:
+        bool
+        if False the yticklabels are not shown
+    :param nxt:
+        int
+        Number of gridlines in x direction
+    :param kwargs:
+        :param ylim:
+        list of min max value of the y axis
+    :return:
+        list
+        xlim, list of list, each with the limits (min, max) of the x axis
+    """
+    ylim = kwargs.pop('ylim', None)
+    if data is None:
+        ax.get_xaxis().set_ticks([])
+        ax.get_yaxis().set_ticks([])
+        return
+
+    if not (len(data) == len(limits) == len(styles)):
+        raise IOError('Must be same number of items in data, limits and styles')
+
+    # store the x axis limits that has been used in each axis
+    xlims = []
+
+    # start plotting
+    # Start with the sonic log (plotting on a reverse scale!)
+    ax.plot(limits[0][0] - data[0], y, **styles[0])
+
+    # Find linear function f(t) = a * t + b that will adjust the logarithmic resistivity values to the limits of the
+    # sonic
+    a = (limits[0][0] - limits[0][1]) / (np.log10(limits[1][1]) - np.log10(limits[1][0]))
+    b = limits[0][1] - a * np.log10(limits[1][0])
+
+    # Then plot the logarithm of the resistivity times the adjustment function f(t)
+    ax.plot(np.log10(data[1]) * a + b, y, **styles[1])
+
+    ax.fill_betweenx(y, np.log10(data[1]) * a + b, limits[0][0] - data[0], np.log10(data[1]) * a + b > (limits[0][0] - data[0]))
+    # We are not using twin axes in this plot because we want to use the fillbetween functionality
+    # So instead of changing the axes limits individually, we need to adjust the resistivity values so
+    # that its logarithm fits within the scale of the sonic (which is reversed!)
+    set_lim(ax, limits[0][::-1])  # counteract the reverse scale
+    xlims.append(limits[0])
+    xlims.append(limits[1])
+
+    if ylim is not None:
+        ax.set_ylim(ylim[::-1])
+
+    ax.get_xaxis().set_ticklabels([])
+    if yticks:
+        ax.get_yaxis().set_ticklabels([])
+    ax.grid(which='major', alpha=0.5)
+
+    return xlims
+
+
 def axis_log_plot(ax, y, data, limits, styles, yticks=True,  **kwargs):
     """
     Plot data in one subplot
@@ -201,14 +296,67 @@ def axis_log_plot(ax, y, data, limits, styles, yticks=True,  **kwargs):
     return xlims
 
 
-def annotate_plot(ax, y, pad=-30, **kwargs):
+def annotate_plot(ax, y, pad=-30, intervals=None, interval_names=None, interval_colors='cyclic', **kwargs):
+    """
+    Creates a, preferably thin in x direction, empty plot which annotates the y axis.
+    Typically to show MD or TWT values
+    Args:
+        ax:
+        y:
+        pad:
+        intervals:
+            list of lists with top and base of N intervals, e.g.
+            [[interval1_top, interval1_base], [interval2_top, interval2_base], ...]
+        interval_names:
+            list of N names to annotate the intervals
+        interval_colors:
+            list of N colors to color each interval
+            if equal to string 'cyclic', two hardcoded colors are used to cyclically color each interval
+        **kwargs:
+
+    Returns:
+
+    """
+    # TODO
+    # Remove the hardcoded cyclic coloring of intervals when needed
+    interval_colors = 'cyclic'
+
     ylim = kwargs.pop('ylim', None)
+    n_int = None
+    if intervals is not None:
+        n_int = len(intervals)
+        if interval_names is not None:
+            if len(interval_names) != n_int:
+                raise IOError('Number of intervals must equal the number of interval names')
+            if (interval_colors is not None) and (interval_colors != 'cyclic') and (len(interval_colors) != n_int):
+                raise IOError('Number of intervals must equal the number of interval colors')
+
     if y is None:
         ax.get_xaxis().set_ticks([])
         ax.get_yaxis().set_ticks([])
         return
 
     ax.plot(np.ones(len(y)), y, lw=0)
+    # draw intervals
+    if (intervals is not None) and (interval_colors is not None) and (interval_colors == 'cyclic'):
+        interval_colors = ['#E3F917', '#17becf'] * int(np.ceil(n_int / 2.))
+    if intervals is not None:
+        for i, _this_interval in enumerate(intervals):
+            ax.axhline(y=_this_interval[0], color='k', lw=0.5)
+            ax.axhline(y=_this_interval[1], color='k', lw=0.5)
+            aboves = y > _this_interval[0]
+            belows = y < _this_interval[1]
+            selection = aboves & belows
+            if interval_colors is not None:
+                ax.fill_betweenx(y, np.ones(len(y)), where=selection, color=interval_colors[i])
+        if interval_names is not None:
+            for i, _this_name in enumerate(interval_names):
+                _y = 0.5 * sum(intervals[i])
+                if ylim is not None:  # skip printing interval names outside y limit
+                    if (_y < ylim[0]) or (_y > ylim[1]):
+                        continue
+                ax.text(0.5 * sum(ax.get_xlim()), _y, _this_name,
+                        weight='bold', rotation='vertical', va='center')
     if ylim is not None:
         ax.set_ylim(ylim[::-1])
     else:
@@ -467,12 +615,11 @@ def set_lim(ax, limits, axis=None):
         return
 
     if None in limits:
-        print('limits', limits)
+        # print('limits', limits)
         # first autoscale
         ax.autoscale(True, axis=axis)
         if axis == 'x':
             _lims = ax.get_xlim()
-            print(_lims)
             ax.set_xlim(
                 limits[0] if limits[0] is not None else _lims[0],
                 limits[1] if limits[1] is not None else _lims[1]
