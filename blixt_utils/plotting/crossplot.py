@@ -105,6 +105,7 @@ def plot(
         xtempl=None,
         ytempl=None,
         ctempl=None,
+        ptempl=None,
         xerror=None,
         yerror=None,
         mask=None,
@@ -150,6 +151,8 @@ def plot(
         same as xtempl, but for the y axis
     :param ctempl:
         same as xtempl, but for the color axis
+    :param ptempl:
+        same as xtempl, but for the size
     :param xerror:
         numpy array of same length as xdata
     :param yerror:
@@ -171,6 +174,7 @@ def plot(
     xlabel, xlim, xcmap, xcnt, xbnds, xscale = handle_template(xtempl)
     ylabel, ylim, ycmap, ycnt, ybnds, yscale = handle_template(ytempl)
     clabel, clim, ccmap, ccnt, cbnds, cscale = handle_template(ctempl)
+    plabel, plim, pcmap, pcnt, pbnds, pscale = handle_template(ptempl)
 
     # Handle mask
     if mask is None:
@@ -220,8 +224,12 @@ def plot(
     if (cdata is not None) and (not isinstance(cdata, str)):
         cdata = cdata[mask][odi]
     if isinstance(pdata, np.ndarray):
-        npdata = pdata[~mask][nodi]
-        pdata = pdata[mask][odi]
+        if plim[1] is not None:
+            npdata = pdata[~mask][nodi] * pointsize / plim[1]
+            pdata = pdata[mask][odi] * pointsize / plim[1]
+        else:
+            npdata = pdata[~mask][nodi] * pointsize / np.nanmax(pdata[mask][nodi])
+            pdata = pdata[mask][odi] * pointsize / np.nanmax(pdata[mask][nodi])
     else:
         pdata = pointsize
         npdata = pointsize

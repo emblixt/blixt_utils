@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 import os
@@ -68,7 +69,8 @@ def read_segy(f, lag=0, twod=False, byte_il=189, byte_xl=193):
 def read_petrel_wavelet(filename,
                         normalize=True,
                         convert_to_zero_phase=False,
-                        resample_to=None):
+                        resample_to=None,
+                        verbose=False):
     """
     Reads a wavelet exported from Petrel using the ASCII format
     Returns the header (dictionary), time [s] and the wavelet
@@ -89,7 +91,6 @@ def read_petrel_wavelet(filename,
     sample_rate_identifier = 'SAMPLE-RATE'
     name = 'unknown'
     sample_rate = None
-    normalized = False
     zero_phased = False
     resampled = False
     scale_factor = 1.
@@ -121,7 +122,7 @@ def read_petrel_wavelet(filename,
     header['Name'] = name
     header['Sample rate'] = float(sample_rate) / 1000.
     header['Original filename'] = filename
-    header['Normalized'] = normalized
+    header['Normalized'] = normalize
     header['Scale factor'] = scale_factor
     header['Converted to zero phase'] = zero_phased
     header['Time shift'] = 0.
@@ -132,7 +133,7 @@ def read_petrel_wavelet(filename,
     if normalize:
         scale_factor = max(wavelet)
         wavelet = wavelet / scale_factor
-        header['Normalized'] = normalized
+        header['Normalized'] = normalize
         header['Scale factor'] = scale_factor
     if convert_to_zero_phase:
         time_at_max = time[np.argmax(wavelet)]
@@ -161,6 +162,20 @@ def read_petrel_wavelet(filename,
     if np.mod(len(time), 2) != 0:  # odd number of elements
         time = time[:-1]
         wavelet = wavelet[:-1]
+
+    if verbose:
+        text_style = {'fontsize': 'x-small', 'bbox': {'facecolor': 'lightgray', 'alpha': 0.4}}
+        info_txt = ''
+        for key in list(header.keys()):
+            if key in ['Original filename', 'Name']:
+                continue
+            info_txt += '{}: {}\n'.format(key, header[key])
+        info_txt = info_txt[:-1]
+        fig, ax = plt.subplots()
+        ax.plot(time, wavelet)
+        ax.set_title(header['Name'])
+        ax.text(ax.get_xlim()[0], ax.get_ylim()[1], info_txt,
+                ha='left', va='top', **text_style)
 
     return header, time, wavelet
 
@@ -206,6 +221,8 @@ def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name):
         print('WARNING: {}'.format(info_txt))
         return None
     file_format = kwargs.pop('file format')
+    if file_format is None:
+        raise IOError('Well path or checkshot file format not specified')
     if file_format.lower() not in ['well trace from petrel', 'general ascii', 'original survey points',
                                    'petrel checkshot']:
         raise IOError('Unknown file format {}'.format(file_format))
@@ -689,7 +706,9 @@ def project_templates(filename):
             continue
         result[ans] = {}
         for key in ['bounds', 'center', 'colormap', 'description', 'max', 'min',
-                    'scale', 'type', 'unit', 'line color', 'line style', 'line width']:
+                    'scale', 'type', 'unit', 'line color', 'line style', 'line width', 'marker']:
+            if key not in list(table.keys()):
+                continue
             result[ans][key] = None if isnan(table[key][i]) else table[key][i]
         result[ans]['full_name'] = ans
 
@@ -1021,7 +1040,7 @@ def read_petrel_tops(filename, header=None, top=True, zstick='md', only_these_we
     return return_dict_from_tops(tops, 'Well identifier', 'Surface', key_name, only_these_wells=only_these_wells)
 
 
-def write_tops(filename, tops, frmt, well_names=None, interval_names=None, sheet_name=None):
+def write_working_intervals(filename, tops, frmt, well_names=None, interval_names=None, sheet_name=None):
     """
     Writes the tops to the excel file "filename", in the sheet name 'Working intervals'
     If "filename" exists, and is open, it raises a warning
@@ -1091,7 +1110,7 @@ def write_tops(filename, tops, frmt, well_names=None, interval_names=None, sheet
     # test if fifth row exists
     if ws[5][0].value is None:
         ws['A2'] = 'Depth are in meters MD'
-        for j, val in enumerate(['Use', 'Given well name', 'Interval name', 'Top depth', 'Base depth']):
+        for j, val in enumerate(['Use', 'Given well name', 'Interval name', 'Top depth', 'Base depth', 'Source', 'Note']):
             ws.cell(5, j+1).value = val
 
     # read in the tops
@@ -1281,6 +1300,79 @@ def read_regressions(filename, sheet_name=None):
                 these_params.append(table[column][i])
         result[log_name][this_well_name][this_interval_name][this_type]['Params'] = these_params
 
+    return result
+
+
+def read_petrel_points(filename):
+    """
+    Reads a Petrel points (with attributes) file, and returns a dictionary with a "header" and a "data" key.
+    The value belonging to the "data" key is a dictionary with each column of data as a key: value pair
+    Args:
+        filename:
+
+    Returns:
+        dict
+    """
+    result = {'data': {}}
+    keys = []
+    key_types = []
+    no_strings = False
+    data_section = False
+    header_section = False
+    i = 0
+    header_txt = 'Original filename: {}\n'.format(filename)
+
+    if filename is None:
+        return None
+
+    xx = ''
+    with open(filename, 'r') as f:
+        for line in f.readlines():
+            if line[0] == '#':
+                header_txt += '{}'.format(line)
+            if line[:7] == 'BEGIN H':
+                header_section = True
+                continue
+            elif line[:5] == 'END H':
+                header_section = False
+                data_section = True
+                if 'STRING' not in key_types:  # No strings in the data, allows for faster reading
+                    no_strings = True
+                # add a container for each column of data
+                for _x in keys:
+                    result['data'][_x] = []
+                continue
+            if header_section:
+                _line = line.split(',')
+                if len(_line) == 1:
+                    keys.append(_line[0].replace('\n', ''))
+                    key_types.append('FLOAT')
+                elif len(_line) == 2:
+                    keys.append(_line[1].replace('\n', ''))
+                    key_types.append(_line[0].replace('\n', ''))
+            if data_section:
+                if no_strings:
+                    _line = line.split()
+                    for _i, _key in enumerate(keys):
+                        result['data'][_key].append(float(_line[_i]))
+                else:
+                    # Strings are enclosed in " ", and can contain spaces, so we can split the line using spaces
+                    # Instead we need to first identify all strings that are enclosed in " "
+                    match = re.findall("\".*?\"", line)
+                    # TODO Now we assume that the number of elements in match is the same as the number of string elements
+                    # Replace all the matches above, with any string (without spaces)
+                    for _match in match:
+                        line = line.replace(_match, 'XXX')
+                    _line = line.split()
+                    string_counter = 0
+                    for _i, _key, _key_type in zip(range(len(keys)), keys, key_types):
+                        if 'STRING' in _key_type:
+                            result['data'][_key].append(match[string_counter].replace('"', ''))
+                            string_counter += 1
+                        else:
+                            result['data'][_key].append(float(_line[_i]))
+
+    result['header'] = header_txt
     return result
 
 

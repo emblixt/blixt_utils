@@ -90,7 +90,18 @@ def play_with_data_fit():
     res2 = least_squares(residuals, x0, args=(t, y), kwargs={'target_function': linear_function},
                          loss='cauchy', verbose=2)
 
-    ax.plot(new_t, linear_function(new_t, *x), new_t, linear_function(new_t, *res.x), new_t, linear_function(new_t, *res2.x))
+    # Try with weights
+    weights = np.ones(len(t))
+    weights[y > 4.5] = 0  # ignore data points above
+    weights[y < 3.0] = 0  # ignore data points below
+    res3 = least_squares(residuals, x0, args=(t, y), kwargs={'target_function': linear_function, 'weight': weights}, verbose=2)
+
+    print(x); print(res.x); print(res2.x); print(res3.x)
+
+    ax.plot(new_t, linear_function(new_t, *x),
+            new_t, linear_function(new_t, *res.x),
+            new_t, linear_function(new_t, *res2.x),
+            new_t, linear_function(new_t, *res3.x))
 
     plt.show()
 

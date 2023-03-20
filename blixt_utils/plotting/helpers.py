@@ -11,6 +11,7 @@ clrs = list(mcolors.BASE_COLORS.keys())
 clrs.remove('w')
 cclrs = cycle(clrs)  # "infinite" loop of the base colors
 
+
 def next_color():
     return next(cclrs)
 
@@ -213,7 +214,12 @@ def deltalogr_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
     # Then plot the logarithm of the resistivity times the adjustment function f(t)
     ax.plot(np.log10(data[1]) * a + b, y, **styles[1])
 
-    ax.fill_betweenx(y, np.log10(data[1]) * a + b, limits[0][0] - data[0], np.log10(data[1]) * a + b > (limits[0][0] - data[0]))
+    ax.fill_betweenx(
+        y,
+        np.log10(data[1]) * a + b,
+        limits[0][0] - data[0], np.log10(data[1]) * a + b > (limits[0][0] - data[0]),
+        color='r'
+    )
     # We are not using twin axes in this plot because we want to use the fillbetween functionality
     # So instead of changing the axes limits individually, we need to adjust the resistivity values so
     # that its logarithm fits within the scale of the sonic (which is reversed!)
@@ -225,8 +231,9 @@ def deltalogr_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
         ax.set_ylim(ylim[::-1])
 
     ax.get_xaxis().set_ticklabels([])
-    if yticks:
+    if not yticks:
         ax.get_yaxis().set_ticklabels([])
+        ax.tick_params(axis='y', length=0)
     ax.grid(which='major', alpha=0.5)
 
     return xlims
@@ -395,15 +402,17 @@ def header_plot(ax, limits, legends, styles, title=None):
         return
 
     if not (len(limits) == len(legends) == len(styles)):
-        raise IOError('Must be same number of items in limits, legends and styles')
+        raise IOError('Must be same number of items in limits ({}), legends ({}) and styles ({})'.format(
+            len(limits), len(legends), len(styles)
+        ))
 
     # Sub divide plot in this number of horizontal parts
     n = 8
     for i in range(len(limits)):
-        ax.plot([1, 2],  [n-1-2*i, n-1-2*i], **styles[i])
+        ax.plot([1, 1.333, 1.666, 2],  [n-1-2*i]*4, **styles[i])
         ax.text(1-0.03, n-1-2*i, '{:.1f}'.format(limits[i][0]), ha='right', va='center', fontsize='smaller')
         ax.text(2+0.03, n-1-2*i, '{:.1f}'.format(limits[i][1]), ha='left', va='center', fontsize='smaller')
-        ax.text(1.5, n-1-2*i+0.05, legends[i], ha='center', fontsize='smaller')
+        ax.text(1.5, n-1-2*i+0.1, legends[i], ha='center', va='bottom', fontsize='smaller')
 
     ax.set_xlim(0.8, 2.3)
     ax.get_xaxis().set_ticks([])
@@ -414,7 +423,7 @@ def header_plot(ax, limits, legends, styles, title=None):
 
 
 def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',
-                fill_neg_style='default', zero_style=None, **kwargs):
+                fill_neg_style='default', zero_style=None, yticks=True, **kwargs):
     """
     Draws a (seismic) wiggle plot centered at 'zero_at'
     :param ax:
@@ -481,6 +490,9 @@ def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',
         ax.set_ylim(ylim[::-1])
     else:
         ax.set_ylim(ax.get_ylim()[::-1])
+    if not yticks:
+        ax.get_yaxis().set_ticklabels([])
+        ax.tick_params(axis='y', length=0)
 
 
 def chi_rotation_plot(eeis, y, chi_angles, eei_limits, line_colors=None, legends=None, reference_log=None,

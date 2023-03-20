@@ -31,6 +31,7 @@ def create_mask(data, operator, limits):
         float, or list of floats
     :return:
         numpy boolean mask array
+        True values indicate that this data point fulfills the operator with the given limits
     """
 
     if not isinstance(data, np.ndarray):
