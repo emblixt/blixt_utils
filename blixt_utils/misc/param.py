@@ -11,3 +11,10 @@ class Param:
     value: float
     unit: str
     desc: str
+
+    def __repr__(self):
+        # if len(self.desc) == 0:
+        #     return '{} = {} [{}]'.format(self.name, self.value, self.unit)
+        # else:
+        #     return '{} = {} [{}], {}'.format(self.name, self.value, self.unit, self.desc)
+        return '{}'.format(self.value)

@@ -599,7 +599,7 @@ def get_rename_logs_dict(well_table):
         dict or None
         {<las file name> : {'gr': ['gr_cpi'],
                             'neu': ['neu_cpi'],
-                            'phit_cpi': ['phit'],
+                            'phit': ['phit_cpi'],
                             ...} }
     """
     rename_logs = {}
@@ -1542,6 +1542,91 @@ def unique_names(table, column_name, well_names=True):
         return [x for x in list(set(table[column_name])) if isinstance(x, str)]
 
 
+def return_dict_from_excel(file_name, sheet_name, header_line, well_key, depth_key, data_str, depth_is_md=True):
+    """
+    Reads excel sheet with log data (core samples, cuttings, ...) and returns a dictionary with each well as key, 
+    the corresponding item is a dictionary with md (tvd) and data arrays. E.G.
+        {'34_3_1S': {
+            'depth': np.array(...),
+            'toc': np.array(...), 
+            'lom': np.array(...),
+            ...
+            }
+        }
+    
+    Args:
+        file_name:
+            str
+            Full path name of excel file to read
+        sheet_name:
+            str
+            Name of sheet to fetch the data from
+        header_line:
+            int
+            (Pythonic) line number of the header lines (from which the column headers (keys) are taken from)
+        well_key:
+            str
+            Column header from which the well name is taken
+        depth_key:
+            str
+            Column header from which the depth information is taken
+        data_str:
+            str
+            String containing data column header name and data output name in the same format as the 'Translate log names'
+            item in the output from project_wells_new()
+            e.g. 'TOC.Any->toc, LOM from equivalent Ro->lom'
+            Where 'TOC.Any' and 'LOM from equivalent Ro' are the column headers under which the data is found.
+            The function interpret_rename_string() must be able to interpret this string
+        depth_is_md:
+            bool
+            If True, the depth information in the excel file is in MD.
+            If False, the depth information is interpreted as TVD
+        
+    Returns:
+           dict
+            Dictionary with each well as key, the corresponding item is a dictionary with md (tvd) and data arrays.
+            E.G.
+                {'34_3_1S': {
+                    'depth': np.array(...),
+                    'toc': np.array(...),
+                    'lom': np.array(...),
+                    ...
+                    }
+                }
+
+    """
+    out = {}
+    data_keys_dict = interpret_rename_string(data_str, keep_case=True)
+
+    table = pd.read_excel(
+        file_name,
+        header=header_line,
+        sheet_name=sheet_name,
+        engine='openpyxl')
+
+    if depth_is_md:
+        depth_name = 'depth'
+    else:
+        depth_name = 'tvd'
+
+    # loop over all rows in the table, and sort the data according to well
+    last_well = 'XXX'
+    for i, ans in enumerate(table[well_key]):
+        this_well = fix_well_name(ans)
+        if this_well != last_well:
+            # Add new empty data dictionary for this well
+            out[this_well] = {key: [] for key in list(data_keys_dict.keys()) + [depth_name]}
+        out[this_well][depth_name].append(table[depth_key][i])
+        for key in list(data_keys_dict.keys()):
+            out[this_well][key].append(table[data_keys_dict[key]][i])
+        last_well = this_well
+
+    for well_name in list(out.keys()):
+        for key in list(out[well_name]):
+            out[well_name][key] = np.array(out[well_name][key])
+    return out
+
+
 def return_dict_from_tops(tops, well_key, top_key, key_name, only_these_wells=None, include_base=None):
     """
 
@@ -1983,12 +2068,93 @@ def well_reader(lines, file_format='las'):
     return null_val, generated_keys, well_dict
 
 
-def interpret_rename_string(rename_string):
+def well_excel_reader(well_name, file_name, sheet_name, header_line, well_key, depth_key, data_str, depth_is_md=True):
+    """
+
+    Args:
+        well_name:
+            str
+            well name
+        file_name:
+            str
+            Full path name of excel file to read
+        sheet_name:
+            str
+            Name of sheet to fetch the data from
+        header_line:
+            int
+            (Pythonic) line number of the header lines (from which the column headers (keys) are taken from)
+        well_key:
+            str
+            Column header from which the well name is taken
+        depth_key:
+            str
+            Column header from which the depth information is taken
+        data_str:
+            str
+            String containing data column header name and data output name in the same format as the 'Translate log names'
+            item in the output from project_wells_new()
+            e.g. 'TOC.Any->toc, LOM from equivalent Ro->lom'
+            Where 'TOC.Any' and 'LOM from equivalent Ro' are the column headers under which the data is found.
+            The function interpret_rename_string() must be able to interpret this string
+        depth_is_md:
+            bool
+            If True, the depth information in the excel file is in MD.
+            If False, the depth information is interpreted as TVD
+
+    Returns:
+        null_val, generated_keys, well_dict
+    """
+    necessary_input = [
+        file_name,
+        sheet_name,
+        header_line,
+        well_key,
+        depth_key,
+        data_str,
+        depth_is_md
+    ]
+    for inp in necessary_input:
+        if inp is None:
+            raise IOError('Some mandatory input variables are set to None')
+
+    data_dict = return_dict_from_excel(*necessary_input)
+
+    if well_name not in list(data_dict.keys()):
+        raise IOError('Current well {} is not listed in file {}'.format(
+            well_name, os.path.basename(filename)
+        ))
+
+    null_val = 'NaN'
+
+    generated_keys = [xx.lower() for xx in list(data_dict[well_name].keys())]
+    accepted_sections = {"version", "well_info", "parameter", "curve", "data"}
+    well_dict = {xx: {} for xx in accepted_sections}
+    well_dict['version'] = {'vers': {'value': 'xlsx', 'unit': '', 'desc': 'Read from excel table of well data'}}
+    # TODO
+    # Make it possible to add units and description to data read from Excel files too
+    for key in generated_keys:
+        well_dict['curve'][key] = {'api_code': None, 'unit': None, 'desc': None}
+        well_dict['data'][key] = data_dict[well_name][key]
+
+    well_dict['well_info']['strt'] = {'value': np.nanmin(well_dict['data']['depth']), 'unit': '', 'desc': ''}
+    well_dict['well_info']['stop'] = {'value': np.nanmax(well_dict['data']['depth']), 'unit': '', 'desc': ''}
+    well_dict['well_info']['step'] = {'value': None, 'unit': '', 'desc': ''}
+    well_dict['well_info']['well'] = {'value': well_name, 'unit': '', 'desc': 'WELL'}
+
+    return null_val, generated_keys, well_dict
+
+
+def interpret_rename_string(rename_string, keep_case=False):
     """
     creates a rename dictionary ({'VCL': 'VSH', 'Vp': 'Vp_dry'}) from input string
     :param rename_string:
         str
         renaming defined by "VSH->VCL, Vp_dry->Vp"
+    :param keep_case:
+        bool
+        If true, the letter case is unchanged.
+        Default False, which changes all cases to lower
     :return:
         dict or None
     """
@@ -2005,7 +2171,10 @@ def interpret_rename_string(rename_string):
             print('WARNING: {}'.format(warn_txt))
             logger.warning(warn_txt)
             continue
-        return_dict[names[1].strip().lower()] = names[0].strip().lower()
+        if keep_case:
+            return_dict[names[1].strip()] = names[0].strip()
+        else:
+            return_dict[names[1].strip().lower()] = names[0].strip().lower()
     if len(return_dict) < 1:
         return None
     else:
@@ -2085,8 +2254,18 @@ def _split(_string, _separator):
     return clean_list
 
 
+def test1():
+    las_file = os.path.dirname(__file__).replace('blixt_utils\\blixt_utils\\io', 'blixt_rp\\test_data\\Well A.las')
+    project_table = os.path.dirname(__file__).replace('blixt_utils\\blixt_utils\\io', 'blixt_rp\\excels\\project_table.xlsx')
+    print(project_table)
+    working_dir = os.path.dirname(__file__).replace('blixt_utils\\blixt_utils\\io', '')
+    wells = project_wells_new(project_table, working_dir)
+    print(list(wells.keys()))
+
+
+def test2():
+    typical_rename_string = 'LFP_VP_VIRGIN->VP_VIRG, LFP_VS_VIRGIN->VS_VIRG, LFP_AI_VIRGIN->AI_VIRG'
+    print(interpret_rename_string(typical_rename_string))
+
 if __name__ == '__main__':
-    _filename = 'H:\\My Drive\\GeoMind\\Clients\\AkerBP\\PL1124 Nise SRC\\PL1124_project_table.xlsx'
-    _working_dir = 'H:\\My Drive\\GeoMind\\Clients\\AkerBP\\PL1124 Nise SRC'
-    _wells = project_wells(_filename, _working_dir)
-    print(list(_wells.keys()))
+    test1()

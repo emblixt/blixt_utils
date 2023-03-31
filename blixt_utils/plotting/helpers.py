@@ -343,7 +343,11 @@ def annotate_plot(ax, y, pad=-30, intervals=None, interval_names=None, interval_
         ax.get_yaxis().set_ticks([])
         return
 
-    ax.plot(np.ones(len(y)), y, lw=0)
+    # the y data can be masked, making the intervals look patchy.
+    # Try fix this by using a "stiched" version of y
+    this_y = np.linspace(np.nanmin(y), np.nanmax(y), 1000)
+
+    ax.plot(np.ones(len(this_y)), this_y, lw=0)
     # draw intervals
     if (intervals is not None) and (interval_colors is not None) and (interval_colors == 'cyclic'):
         interval_colors = ['#E3F917', '#17becf'] * int(np.ceil(n_int / 2.))
@@ -351,11 +355,11 @@ def annotate_plot(ax, y, pad=-30, intervals=None, interval_names=None, interval_
         for i, _this_interval in enumerate(intervals):
             ax.axhline(y=_this_interval[0], color='k', lw=0.5)
             ax.axhline(y=_this_interval[1], color='k', lw=0.5)
-            aboves = y > _this_interval[0]
-            belows = y < _this_interval[1]
+            aboves = this_y > _this_interval[0]
+            belows = this_y < _this_interval[1]
             selection = aboves & belows
             if interval_colors is not None:
-                ax.fill_betweenx(y, np.ones(len(y)), where=selection, color=interval_colors[i])
+                ax.fill_betweenx(this_y, np.ones(len(this_y)), where=selection, color=interval_colors[i])
         if interval_names is not None:
             for i, _this_name in enumerate(interval_names):
                 _y = 0.5 * sum(intervals[i])
