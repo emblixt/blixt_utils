@@ -5,6 +5,7 @@ logger = logging.getLogger(__name__)
 
 bar_to_gpa = 0.0001
 bar_to_mpa = 0.1
+bar_per_m_to_gr_cm3 = 10.2
 m_to_ft = 3.28084
 
 

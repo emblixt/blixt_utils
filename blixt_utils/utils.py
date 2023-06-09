@@ -29,16 +29,18 @@ def arrange_logging(log_to_stdout, log_to_this_file, level=logging.INFO):
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
-    frmt = '%(filename)s - %(funcName)s: %(levelname)s:%(message)s'
+    frmt = '%(asctime)s | %(filename)s - %(funcName)s: %(levelname)s:%(message)s'
     if log_to_stdout:
         logging.basicConfig(stream=sys.stdout,
                             format=frmt,
-                            level=level)
+                            level=level,
+                            datefmt='%Y-%m-%d %H:%M:%S')
     else:
         logfile = log_to_this_file
         logging.basicConfig(filename=logfile,
                             format=frmt,
-                            level=level)
+                            level=level,
+                            datefmt='%Y-%m-%d %H:%M:%S')
 
 
 def gitversion():

@@ -16,6 +16,7 @@ import segyio
 
 from blixt_utils.utils import isnan
 from blixt_utils.utils import nan_corrcoef
+from blixt_utils.plotting.helpers import wavelet_plot
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,9 @@ def read_petrel_wavelet(filename,
                         normalize=True,
                         convert_to_zero_phase=False,
                         resample_to=None,
-                        verbose=False):
+                        verbose=False,
+                        return_dict=False,
+                        **kwargs):
     """
     Reads a wavelet exported from Petrel using the ASCII format
     Returns the header (dictionary), time [s] and the wavelet
@@ -86,6 +89,9 @@ def read_petrel_wavelet(filename,
     :param resample_to:
         float
         set this to the desired sample rate of the wavelet.
+    :param verbose:
+        bool
+        If True, a plot of the wavelet is generated
     """
     name_identifier = 'WAVELET-NAME'
     sample_rate_identifier = 'SAMPLE-RATE'
@@ -164,20 +170,12 @@ def read_petrel_wavelet(filename,
         wavelet = wavelet[:-1]
 
     if verbose:
-        text_style = {'fontsize': 'x-small', 'bbox': {'facecolor': 'lightgray', 'alpha': 0.4}}
-        info_txt = ''
-        for key in list(header.keys()):
-            if key in ['Original filename', 'Name']:
-                continue
-            info_txt += '{}: {}\n'.format(key, header[key])
-        info_txt = info_txt[:-1]
-        fig, ax = plt.subplots()
-        ax.plot(time, wavelet)
-        ax.set_title(header['Name'])
-        ax.text(ax.get_xlim()[0], ax.get_ylim()[1], info_txt,
-                ha='left', va='top', **text_style)
+        wavelet_plot(None, time, wavelet, header)
 
-    return header, time, wavelet
+    if return_dict:
+        return {'wavelet': wavelet, 'time': time, 'header': header}
+    else:
+        return header, time, wavelet
 
 
 def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name):

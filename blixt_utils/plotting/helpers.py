@@ -426,8 +426,8 @@ def header_plot(ax, limits, legends, styles, title=None):
         ax.text(1.5, 0.6, title, ha='center')
 
 
-def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',
-                fill_neg_style='default', zero_style=None, yticks=True, **kwargs):
+def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='pos-blue',
+                fill_neg_style='neg-red', color_by_gradient=None, zero_style=None, yticks=True, **kwargs):
     """
     Draws a (seismic) wiggle plot centered at 'zero_at'
     :param ax:
@@ -449,6 +449,11 @@ def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',
         'neg': Fills the negative side of the wiggle
         'pos': Fills the positive side of the wiggle
         None : No fill
+    :param color_by_gradient:
+        numpy.array
+        If this is set, the value of the gradient is used to determine the fill_between color.
+        This way we can see the AVO class directly from the sign of the wiggle, and color of the fill, without
+        having to plot several wiggles.
     :param zero_style:
         dict
         style keywords of the line marking zero
@@ -477,10 +482,50 @@ def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='default',
         fill_neg_style = {'color': 'r', 'alpha': 0.2, 'lw': 0.}
     if zero_style is None:
         zero_style = {'lw': 0.5, 'color': 'k', 'alpha': 0.2}
+
     # shift and scale the data so that it is centered at 'zero_at'
     wig = zero_at + wiggle*scaling
     #print('Wiggle plot lengths: {}, {}'.format(len(wig), len(y)))
     ax.plot(wig, y, lw=lw, color=c, **kwargs)
+
+    # Try with fill colors depending on sign of the gradient
+    pos_amp_pos_gradient = False
+    pos_amp_neg_gradient = False
+    neg_amp_pos_gradient = False
+    neg_amp_neg_gradient = False
+
+    if color_by_gradient is not None and len(color_by_gradient) == len(wiggle):
+        fill_pos_style = None
+        fill_neg_style = None
+
+        pos_amp_pos_gradient = np.array(np.zeros(len(wiggle)), dtype=bool)
+        pos_amp_neg_gradient = np.array(np.zeros(len(wiggle)), dtype=bool)
+        neg_amp_pos_gradient = np.array(np.zeros(len(wiggle)), dtype=bool)
+        neg_amp_neg_gradient = np.array(np.zeros(len(wiggle)), dtype=bool)
+
+        zero_crossings = np.where(np.diff(np.sign(wiggle) >= 0))[0]
+        last_index = 0
+        for index in zero_crossings:
+            this_part = wiggle[last_index:index]
+            if np.nanmean(this_part) > 0:  # positive amplitude
+                if np.nanmean(color_by_gradient[last_index:index]) > 0:  # positive gradient
+                    pos_amp_pos_gradient[last_index:index] = True
+                else:  # negative gradient
+                    pos_amp_neg_gradient[last_index:index] = True
+            else:  # negative amplitude
+                if np.nanmean(color_by_gradient[last_index:index]) > 0:
+                    neg_amp_pos_gradient[last_index:index] = True
+                else:  # negative gradient
+                    neg_amp_neg_gradient[last_index:index] = True
+            last_index = index
+
+        # ax.plot(wig[zero_crossings], zero_crossings, 'o')
+
+        ax.fill_betweenx(y, wig, zero_at, pos_amp_pos_gradient, **{'color': 'b', 'alpha': 1.0, 'lw': 0.})
+        ax.fill_betweenx(y, zero_at, wig, neg_amp_pos_gradient, **{'color': 'b', 'alpha': 1.0, 'lw': 0.})
+        ax.fill_betweenx(y, wig, zero_at, pos_amp_neg_gradient, **{'color': 'r', 'alpha': 1.0, 'lw': 0.})
+        ax.fill_betweenx(y, zero_at, wig, neg_amp_neg_gradient, **{'color': 'r', 'alpha': 1.0, 'lw': 0.})
+
     if fill_pos_style is not None:
         ax.fill_betweenx(y, wig, zero_at, wig > zero_at, **fill_pos_style)
         #pass
@@ -818,4 +863,48 @@ def confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
     ellipse.set_transform(transf + ax.transData)
     return ax.add_patch(ellipse)
 
+
+def wavelet_plot(ax, time, wavelet, header=None, orientation='right', show_ticks=True):
+    """
+
+    :param ax:
+    :param wavelet:
+    :param time:
+    :param header:
+    :param orientation:
+        str
+        The orientation of the time axis
+        'right', 'down'
+    :return:
+    """
+    text_style = {'fontsize': 'x-small', 'bbox': {'facecolor': 'lightgray', 'alpha': 0.4}}
+    info_txt = ''
+    if header is not None:
+        for key in list(header.keys()):
+            if key in ['Original filename', 'Name']:
+                continue
+            info_txt += '{}: {}\n'.format(key, header[key])
+        info_txt = info_txt[:-1]
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    x_pos, ha = None, None
+    if orientation == 'down':
+        ax.plot(wavelet, time)
+        x_pos = 1
+        ha = 'right'
+        ax.set_ylim(ax.get_ylim()[::-1])
+    elif orientation == 'right':
+        ax.plot(time, wavelet)
+        x_pos = 0
+        ha = 'left'
+
+    if header is not None:
+        ax.set_title(header['Name'])
+        ax.text(ax.get_xlim()[x_pos], ax.get_ylim()[1], info_txt,
+                ha=ha, va='top', **text_style)
+
+    if not show_ticks:
+        ax.get_xaxis().set_ticks([])
+        ax.get_yaxis().set_ticks([])
 
