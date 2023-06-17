@@ -111,9 +111,9 @@ def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
 
     # set up the x range differently for each plot
     for i in range(len(data)):
-        #axes[i].set_xlim(*limits[i])
+        # axes[i].set_xlim(*limits[i])
         set_lim(axes[i], limits[i], 'x')
-        #print(limits[i])
+        # print(limits[i])
         xlims.append(axes[i].get_xlim())
         # Change major ticks to set up the grid as desired
         if nxt > 0:
@@ -243,6 +243,8 @@ def axis_log_plot(ax, y, data, limits, styles, yticks=True,  **kwargs):
     """
     Plot data in one subplot
     Similar to axis_plot, but uses the same (logarithmic) x axis for all data
+    
+    The log axis can only handle one x range, so only the first range list in limits is used
     :param ax:
         matplotlib axes object
     :param y:
@@ -284,7 +286,7 @@ def axis_log_plot(ax, y, data, limits, styles, yticks=True,  **kwargs):
 
     ax.set_xscale('log')
     #ax.set_xlim(*limits)
-    set_lim(ax, limits, 'x')
+    set_lim(ax, limits[0], 'x')
     xlims.append(ax.get_xlim())
     ax.get_xaxis().set_ticklabels([])
     ax.tick_params(axis='x', which='both', length=0)
@@ -658,12 +660,12 @@ def chi_rotation_plot(eeis, y, chi_angles, eei_limits, line_colors=None, legends
     return fig, axes, header_axes
 
 
-def set_lim(ax, limits, axis=None):
+def set_lim(ax, these_limits, axis=None):
     """
     Convinience function to set the x axis limits. Interprets None as autoscale
     :param ax:
         matplotlib.axes
-    :param limits:
+    :param these_limits:
         list
         list of  min, max value.
         If any is None, axis is autoscaled
@@ -674,28 +676,37 @@ def set_lim(ax, limits, axis=None):
     """
     if axis is None:
         return
+    
+    if len(these_limits) != 2:
+        print("WARNING, 'these_limits' must have length 2. Now it has length {}".format(len(these_limits)))
+        these_limits = [None, None]
 
-    if None in limits:
-        # print('limits', limits)
+    # Remove unintentional text strings that might exist in the min/max of the templates
+    for _i in range(2):
+        if isinstance(these_limits[_i], str):
+            these_limits[_i] = None
+
+    if None in these_limits:
+        print('limits', these_limits)
         # first autoscale
         ax.autoscale(True, axis=axis)
         if axis == 'x':
             _lims = ax.get_xlim()
             ax.set_xlim(
-                limits[0] if limits[0] is not None else _lims[0],
-                limits[1] if limits[1] is not None else _lims[1]
+                left=these_limits[0] if these_limits[0] is not None else _lims[0],
+                right=these_limits[1] if these_limits[1] is not None else _lims[1]
             )
         else:
             _lims = ax.get_ylim()
             ax.set_ylim(
-                limits[0] if limits[0] is not None else _lims[0],
-                limits[1] if limits[1] is not None else _lims[1]
+                these_limits[0] if these_limits[0] is not None else _lims[0],
+                these_limits[1] if these_limits[1] is not None else _lims[1]
             )
     else:
         if axis == 'x':
-            ax.set_xlim(*limits)
+            ax.set_xlim(*these_limits)
         else:
-            ax.set_ylim(*limits)
+            ax.set_ylim(*these_limits)
 
 
 def plot_ampspec(ax, freq, amp, f_peak, name=None):

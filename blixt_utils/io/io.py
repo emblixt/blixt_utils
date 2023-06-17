@@ -692,7 +692,7 @@ def project_files_info(filename, sheet_name):
                 else:
                     value = table[key][i]
                     temp_dict[key.lower()] = value
-            result[table['Given well name'][i]] = temp_dict
+            result[table['Given well name'][i].upper()] = temp_dict
     return result
 
 
@@ -717,7 +717,13 @@ def project_templates(filename):
             continue
         result[ans.upper().strip()] = {}
         for key in ['Color', 'Symbol', 'Content', 'KB', 'UWI', 'UTM', 'X', 'Y', 'Water depth', 'Note']:
-            result[ans.upper().strip()][key.lower()] = None if isnan(table[key][i]) else table[key][i]
+            try:
+                result[ans.upper().strip()][key.lower()] = None if isnan(table[key][i]) else table[key][i]
+            except KeyError as e:
+                warn_txt = 'Key {} not found in Well setting sheet in {}'.format(e, filename)
+                # print(warn_txt)
+                logger.warning(warn_txt)
+
 
     return result
 
@@ -786,7 +792,7 @@ def write_sums_and_averages(filename, line_of_data):
 
     ws = wb.active
     if newfile:
-        ws.append(['Averages Set output from simple python script well_tops.py on {}'.format(
+        ws.append(['Averages Set output from blixt_rp python library on {}'.format(
             datetime.now().isoformat())])
         ws.append(['Template Version: 1'])
         ws.append(['Depth units:             m'])
