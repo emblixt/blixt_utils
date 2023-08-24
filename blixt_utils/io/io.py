@@ -682,7 +682,7 @@ def project_files_info(filename, sheet_name):
         # skip empty rows
         if not isinstance(ans, str):
             continue
-        if ans.lower() == 'yes':
+        if ans.lower() == 'yes':  # Only use lines in which "Use this file" is set to "Yes"
             temp_dict = {}
             for key in list(table.keys()):
                 if (key.lower() == 'use this file') or (key.lower() == 'given well name'):
