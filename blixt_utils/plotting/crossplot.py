@@ -22,12 +22,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.ma as ma
 from matplotlib.font_manager import FontProperties
-from scipy import stats
-from scipy.optimize import least_squares
-import warnings
 import logging
 
-from blixt_utils.misc.templates import handle_template
+from blixt_utils.misc.templates import get_from_template
 
 log = logging.getLogger(__name__)
 
@@ -46,8 +43,7 @@ def test():
     # Set up a test plot
     fig, [ax1, ax2] = plt.subplots(nrows=1, ncols=2)
 
-
-    for ax in [ax1,ax2]:
+    for ax in [ax1, ax2]:
         xdata = np.random.random(100)
         ydata = np.random.random(100)
         cdata = np.random.random(100)
@@ -64,7 +60,6 @@ def test():
                     cdata=cdata,
                     pdata=pdata,
                     mdata=msymbols[3],
-                    fig=fig,
                     ax=ax,
                     cbar=cbar,
                     order_by=odata,
@@ -171,10 +166,14 @@ def plot(
     grid = kwargs.pop('grid', True)
 
     # handle templates
-    xlabel, xlim, xcmap, xcnt, xbnds, xscale = handle_template(xtempl)
-    ylabel, ylim, ycmap, ycnt, ybnds, yscale = handle_template(ytempl)
-    clabel, clim, ccmap, ccnt, cbnds, cscale = handle_template(ctempl)
-    plabel, plim, pcmap, pcnt, pbnds, pscale = handle_template(ptempl)
+    # xlabel, xlim, xcmap, xcnt, xbnds, xscale = handle_template(xtempl)
+    # ylabel, ylim, ycmap, ycnt, ybnds, yscale = handle_template(ytempl)
+    # clabel, clim, ccmap, ccnt, cbnds, cscale = handle_template(ctempl)
+    # plabel, plim, pcmap, pcnt, pbnds, pscale = handle_template(ptempl)
+    xlabel, xlim, xline_style, xplot_style = get_from_template(xtempl)
+    ylabel, ylim, yline_style, yplot_style = get_from_template(ytempl)
+    clabel, clim, cline_style, cplot_style = get_from_template(ctempl)
+    plabel, plim, pline_style, pplot_style = get_from_template(ptempl)
 
     # Handle mask
     if mask is None:
@@ -246,7 +245,8 @@ def plot(
 
     # plot errorbars
     if xerror is not None:
-        if xscale == 'log':
+        # if xscale == 'log':
+        if xplot_style['scale'] == 'log':
             raise NotImplementedError('Error bars on logarithmic scale needs testing before relase')
         ax.errorbar(
             xdata[mask][odi],
@@ -259,7 +259,7 @@ def plot(
         )
 
     if yerror is not None:
-        if yscale == 'log':
+        if yplot_style['scale'] == 'log':
             raise NotImplementedError('Error bars on logarithmic scale needs testing before relase')
         ax.errorbar(
             xdata[mask][odi],
@@ -289,7 +289,8 @@ def plot(
         ydata[mask][odi],
         s=pdata,
         c=cdata,
-        cmap=ccmap,
+        # cmap=ccmap,
+        cmap=cplot_style['cmap'],
         vmin=clim[0],
         vmax=clim[1],
         marker=msymbol,
@@ -334,9 +335,9 @@ def plot(
         #cbar.set_clim(vmin=clim[0], vmax=clim[1]) # causes sometimes a problem with the clim and "ylim" of the colorbar being different
     ax.tick_params(axis='both', labelsize=t_fonts)
 
-    if xscale == 'log':
+    if xplot_style['scale'] == 'log':
         ax.set_xscale('log')
-    if yscale == 'log':
+    if yplot_style['scale'] == 'log':
         ax.set_yscale('log')
 
     return cbar
