@@ -368,7 +368,7 @@ def annotate_plot(ax, y, pad=-30, intervals=None, interval_names=None, interval_
                 if ylim is not None:  # skip printing interval names outside y limit
                     if (_y < ylim[0]) or (_y > ylim[1]):
                         continue
-                ax.text(0.5 * sum(ax.get_xlim()), _y, _this_name,
+                ax.text((0.3 + np.mod(i, 2) * 0.4) * sum(ax.get_xlim()), _y, _this_name,
                         weight='bold', rotation='vertical', va='center')
     if ylim is not None:
         ax.set_ylim(ylim[::-1])
