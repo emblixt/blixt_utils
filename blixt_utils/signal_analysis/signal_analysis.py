@@ -1,4 +1,5 @@
 ﻿import numpy
+import numpy as np
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 
@@ -79,10 +80,13 @@ def smooth(x, window_len=11, window='hanning', method='convolution', interp_vec=
     if x.size < window_len:
         raise ValueError("Input vector needs to be bigger than window size.")
 
-    if window_len<3:
+    if window_len < 3:
         return x
 
     if method == 'median':
+        if np.mod(window_len, 2) == 0:  # avoid even window lengths
+            window_len += 1
+
         _tmp = numpy.median(rolling_window(x, window_len), -1)
 
         # y = numpy.pad(_tmp, int(window_len/2), mode='edge')  # original
