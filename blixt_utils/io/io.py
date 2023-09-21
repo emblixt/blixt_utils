@@ -88,7 +88,7 @@ def read_petrel_wavelet(filename,
         if set to True, the wavelet is converted to zero phase so that its maximum occurs at time zero
     :param resample_to:
         float
-        set this to the desired sample rate of the wavelet.
+        set this to the desired sample rate of the wavelet [s].
     :param verbose:
         bool
         If True, a plot of the wavelet is generated
@@ -126,7 +126,7 @@ def read_petrel_wavelet(filename,
                 wavelet.append(float(data[1]))
 
     header['Name'] = name
-    header['Sample rate'] = float(sample_rate) / 1000.
+    header['Sample rate'] = float(sample_rate)
     header['Original filename'] = filename
     header['Normalized'] = normalize
     header['Scale factor'] = scale_factor
@@ -218,6 +218,12 @@ def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name):
         logger.info(info_txt)
         print('WARNING: {}'.format(info_txt))
         return None
+    if not os.path.isfile(filename):
+        # try adding the default working directory to the file path
+        dir_list = project_table_name.split(os.path.sep)
+        working_dir = os.path.sep.join(dir_list[:-2])
+        filename = os.path.join(working_dir, filename)
+
     file_format = kwargs.pop('file format')
     if file_format is None:
         raise IOError('Well path or checkshot file format not specified')
@@ -2271,5 +2277,16 @@ def test2():
     typical_rename_string = 'LFP_VP_VIRGIN->VP_VIRG, LFP_VS_VIRGIN->VS_VIRG, LFP_AI_VIRGIN->AI_VIRG'
     print(interpret_rename_string(typical_rename_string))
 
+
+def test_read_checkshot_or_wellpath():
+    from blixt_rp.core.well import Project
+    dir_path = os.path.dirname(os.path.realpath(__file__)).replace('\\blixt_utils\\blixt_utils\\io', '')
+    project_table = os.path.join(dir_path, 'blixt_rp', 'excels', 'project_table.xlsx')
+    wp = Project(project_table=project_table)
+    wells = wp.load_all_wells()
+    this_well = list(wells.keys())[0]
+    read_checkshot_or_wellpath(wp.project_table, this_well, "Checkshots")
+
+
 if __name__ == '__main__':
-    test1()
+    test_read_checkshot_or_wellpath()
