@@ -224,15 +224,21 @@ def plot(
         cdata = cdata[mask][odi]
     if isinstance(pdata, np.ndarray):
         if plim[1] is not None:
-            npdata = pdata[~mask][nodi] * pointsize / plim[1]
+            try:
+                npdata = pdata[~mask][nodi] * pointsize / plim[1]
+            except ValueError:
+                npdata = None
             pdata = pdata[mask][odi] * pointsize / plim[1]
         else:
-            npdata = pdata[~mask][nodi] * pointsize / np.nanmax(pdata[mask][nodi])
-            pdata = pdata[mask][odi] * pointsize / np.nanmax(pdata[mask][nodi])
+            try:
+                npdata = pdata[~mask][nodi] * pointsize / np.nanmedian(pdata[mask])
+            except ValueError:
+                npdata = None
+            # pdata = pdata[mask][odi] * pointsize / np.nanmedian(pdata[mask])
+            pdata = point_size(pdata[mask][odi])
     else:
         pdata = pointsize
         npdata = pointsize
-
 
     if edge_color:
         edge_color = 'b'
@@ -349,7 +355,7 @@ def normalize(data):
     return (data - this_min) / (this_max - this_min)
 
 
-def point_size(data, min_size=10., max_size=120., scale='lin'):
+def point_size(data, min_size=40., max_size=500., scale='lin'):
     increase = max_size - min_size
     if scale == 'lin':
         return min_size + normalize(data) * increase
