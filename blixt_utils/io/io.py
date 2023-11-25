@@ -1366,7 +1366,7 @@ def read_petrel_points(filename):
                     for _i, _key in enumerate(keys):
                         result['data'][_key].append(float(_line[_i]))
                 else:
-                    # Strings are enclosed in " ", and can contain spaces, so we can split the line using spaces
+                    # Strings are enclosed in " ", and can contain spaces, so we cant split the line using spaces
                     # Instead we need to first identify all strings that are enclosed in " "
                     match = re.findall("\".*?\"", line)
                     # TODO Now we assume that the number of elements in match is the same as the number of string elements
@@ -2066,10 +2066,20 @@ def well_reader(lines, file_format='las'):
 
         elif section == "data":
             content = line.split()
+            # TODO
+            # Some las files contain names enclosed in " ", and these names can contain spaces (see
+            # S:\Well\Wells_Norway\QUAD_35\35_4-3\Petrophysics\Interpretation\35_4-3_CPI_OUT_2022-11-06.las )
+            # And we need to be smart to separate out these somehow.
+            # It is done in not-so-smart way in read_petrel_checkshots():
+
             for k, v in zip(generated_keys, content):
                 #v = float(v) if v != null_val else None
                 # replace all null values with np.nan, then we have a unified NaN in all well objects
-                v = float(v) if v.rstrip('0') != null_val else np.nan
+                try:
+                    v = float(v) if v.rstrip('0') != null_val else np.nan
+                except ValueError:  # capture weird data
+                    print(v, type(v))
+                    raise ValueError
                 well_dict = add_section(well_dict, section, k.lower(), v)
 
         elif section == "other":
