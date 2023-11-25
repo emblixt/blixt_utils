@@ -1702,7 +1702,7 @@ def write_las(filename, wh, lh, data, overwrite=False):
         well header =  w.header, where w is a core.well.Well object
     :param lh:
         core.well.Header
-        log header = w.block['Block name'].header, where w is a core.well.Well object
+        block header = w.block['Block name'].header, where w is a core.well.Well object
     :param data:
         dict
         data = w.block['Block name'].logs, where w is a core.well.Well object
