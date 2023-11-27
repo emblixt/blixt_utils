@@ -101,6 +101,9 @@ def plot_one_column(well, try_these_log_types, templates, header_ax=None, plot_a
          to the right of logtype 2 (logtype 1 is not necessarily larger than logtype 2, but plots to the right of
          logtype 2 given the limits in the templates
          E.G. [('Density', 'Neutron density', 'b'), ('Neutron density', 'Density', 'y')]
+
+         TODO
+         fill_between only work when the templates of the data to plot contain min and max value limits
     :return:
     """
     if header_ax is None and plot_ax is None:
@@ -123,6 +126,9 @@ def plot_one_column(well, try_these_log_types, templates, header_ax=None, plot_a
         z_max = np.max(depth[mask])
 
     log_types = [x for x in try_these_log_types if (len(well.get_logs_of_type(x)) > 0)]
+    # TODO
+    # Now we take the first log of each log type, generalize this so that it by default takes the first, but
+    # can plot all or one specific
     log_names = {ltype: well.get_logs_of_type(ltype)[0].name for ltype in log_types}
     limits = [[templates[x]['min'], templates[x]['max']] for x in log_types]
     styles = [{'lw': templates[x]['line width'],
@@ -136,16 +142,24 @@ def plot_one_column(well, try_these_log_types, templates, header_ax=None, plot_a
         _fill_betweens = []
         for fill in fill_betweens:
             skip = False
+            indexes = []
             for _logtype in fill[:2]:
-                if _logtype not in log_types:
-                    info_txt = 'Log type {} not found among listed log types'.format(_logtype)
-                    print('INFO: {}'.format(info_txt))
-                    logger.info(info_txt)
-                    _fill_betweens = None
-                    skip = True
+                if _logtype is None:
+                    indexes.append(None)
+                elif _logtype.replace('.', '', 1).isdigit():
+                    indexes.append(_logtype)
+                else:
+                    if _logtype not in log_types:
+                        info_txt = 'Log type {} not found among listed log types'.format(_logtype)
+                        print('INFO: {}'.format(info_txt))
+                        logger.info(info_txt)
+                        _fill_betweens = None
+                        skip = True
+                    indexes.append(log_types.index(_logtype))
             if skip:
                 continue
-            _fill_betweens.append((log_types.index(fill[0]), log_types.index(fill[1]), fill[2]))
+            # _fill_betweens.append((log_types.index(fill[0]), log_types.index(fill[1]), fill[2]))
+            _fill_betweens.append((*indexes, fill[2]))
     else:
         _fill_betweens = None
 
@@ -350,6 +364,11 @@ def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, fill_betweens=Non
          to the right of data2 (data1 is not necessarily larger than data2, but plots to the right of data2 given the
          limits
          E.G. [(0, 1, 'brown'), (1, 0, 'yellow')]
+
+         It can also specified with a None, E.G. [(0, None, 'brown'), ...], which counts a the constant value
+         zero, or with strings, E.G. [(0, '40.', 'brown'), ...], Then the fill is between the constant value
+         0 in the first case, and 40 in the second, and the curve data[0]
+
     :param kwargs:
         :param ylim:
         list of min max value of the y axis
@@ -387,21 +406,51 @@ def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, fill_betweens=Non
     for i in range(len(data)):
         axes[i].plot(data[i], y, **styles[i])
 
-    # fill_between
-    # TODO
-    # Make it possible to fill between a line of data and zero!
     if fill_betweens is not None:
         if not isinstance(fill_betweens, list):
             raise IOError('fill_betweens must be a list')
         for fill in fill_betweens:
-            # TODO
-            # Not sure how this will tackle a case when more than two datasets are plotted and none of them
-            # includes the first element of data
+            # try to cover the case when filling between a curve and a constant
+            data_0 = None
+            min_limit = None
+            delta_limit = None
+            if fill[0] is None:
+                data_0 = 0.0
+                min_limit = limits[fill[1]][0]  # when this is None, use the limits of the other data
+                delta_limit = limits[fill[1]][1] - limits[fill[1]][0]
+            elif isinstance(fill[0], str):
+                data_0 = float(fill[0])
+                min_limit = limits[fill[1]][0]
+                delta_limit = limits[fill[1]][1] - limits[fill[1]][0]
+            elif isinstance(fill[0], int):
+                data_0 = data[fill[0]]
+                min_limit = limits[fill[0]][0]
+                delta_limit = limits[fill[0]][1] - limits[fill[0]][0]
+            else:
+                raise IOError('Error in fill_betweens: ', fill[0])
+            data_1 = None
+            if fill[1] is None:
+                data_1 = 0.0
+                min_limit = limits[fill[0]][0]
+                delta_limit = limits[fill[0]][1] - limits[fill[0]][0]
+            elif isinstance(fill[1], str):
+                data_1 = float(fill[1])
+                min_limit = limits[fill[0]][0]
+                delta_limit = limits[fill[0]][1] - limits[fill[0]][0]
+            elif isinstance(fill[1], int):
+                data_1 = data[fill[1]]
+                min_limit = limits[fill[1]][0]
+                delta_limit = limits[fill[1]][1] - limits[fill[1]][0]
+            else:
+                raise IOError('Error in fill_betweens: ', fill[1])
+
             # sd is the scaled version of the data that matches data[0]
             sd0 = limits[0][0] + (limits[0][1] - limits[0][0]) * \
-                  (data[fill[0]] - limits[fill[0]][0]) / (limits[fill[0]][1] - limits[fill[0]][0])
+                  (data_0 - min_limit) / delta_limit
+                  # (data_0 - limits[fill[0]][0]) / (limits[fill[0]][1] - limits[fill[0]][0])
             sd1 = limits[0][0] + (limits[0][1] - limits[0][0]) * \
-                  (data[fill[1]] - limits[fill[1]][0]) / (limits[fill[1]][1] - limits[fill[1]][0])
+                  (data_1 - min_limit) / delta_limit
+                  # (data_1 - limits[fill[1]][0]) / (limits[fill[1]][1] - limits[fill[1]][0])
             axes[0].fill_betweenx(y, sd0, sd1, sd0 > sd1, color=fill[2])
 
     # set up the x range differently for each plot
@@ -848,6 +897,41 @@ def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='pos-blue'
     if not yticks:
         ax.get_yaxis().set_ticklabels([])
         ax.tick_params(axis='y', length=0)
+
+
+def ava_curve_plot(ax, incident_angles, ava_curves, styles=None ):
+    """
+    Plots a set of amplitude versus angle plots in one axes object
+    :param ax:
+        Axes object
+    :param    incident_angles:
+        list
+        List of incident angles in degrees
+    :param ava_curves:
+        np.ndarray
+        size len(incident_angles), len(extract_at)
+        Array with AVA (amplitude versus angle) curves, one for each "extract_at" float.
+    :param styles:
+        list
+        list of dicts which describes the line styles
+        E.G. [{'lw':1, 'color':'k', 'ls':'-'}, {'lw':2, 'color':'r', 'ls':'-'}, ... ]
+    :return:
+    """
+    # Get axis "physical" size
+    fig = ax.get_figure()
+    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+    bbox_aspect_ratio = bbox.width / bbox.height
+    print(bbox_aspect_ratio)
+    if bbox_aspect_ratio < 0.5:
+        this_ax = ax.inset_axes([0.1, 0.5, 0.88, 0.3])
+    else:
+        this_ax = ax
+
+    for i in range(ava_curves.shape[1]):
+        this_ax.plot(incident_angles, ava_curves[:, i], **styles[i])
+
+    this_ax.axhline(0, 0, 1, c='k', ls='--')
+    this_ax.set_xlabel('Incident angle')
 
 
 def chi_rotation_plot(eeis, y, chi_angles, eei_limits, line_colors=None, legends=None, reference_log=None,
