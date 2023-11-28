@@ -286,7 +286,7 @@ def plot(
             s=npdata,
             marker=msymbol,
             edgecolors='none',
-            alpha=0.5,
+            alpha=0.3,
             label='_nolegend_'
         )
     # Then plot the remaining points
