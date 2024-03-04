@@ -16,7 +16,9 @@ import segyio
 
 from blixt_utils.utils import isnan
 from blixt_utils.utils import nan_corrcoef
-from blixt_utils.plotting.helpers import wavelet_plot
+# If wavelet_plot is used, I get an 'ImportError' "cannot import name 'wavelet_plot' from partially initialized
+# module 'blixt_utils.plotting.helpers' (most likely due to a circular import)"
+# from blixt_utils.plotting.helpers import wavelet_plot
 
 logger = logging.getLogger(__name__)
 
@@ -169,8 +171,8 @@ def read_petrel_wavelet(filename,
         time = time[:-1]
         wavelet = wavelet[:-1]
 
-    if verbose:
-        wavelet_plot(None, time, wavelet, header)
+    # if verbose:
+    #     wavelet_plot(None, time, wavelet, header)
 
     if return_dict:
         return {'wavelet': wavelet, 'time': time, 'header': header}
