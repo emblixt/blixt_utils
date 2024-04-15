@@ -13,7 +13,7 @@ from matplotlib.colors import colorConverter
 from blixt_utils.utils import arrange_logging
 
 logger = logging.getLogger(__name__)
-text_style = {'fontsize': 'x-small', 'bbox' : {'facecolor': 'w', 'alpha': 0.5}}
+text_style = {'fontsize': 'x-small', 'bbox': {'facecolor': 'w', 'alpha': 0.5}}
 
 """
 Code for generating synthetic data taken from 
@@ -32,6 +32,8 @@ class DefineParams:
         """
 
         :param patch_size:
+            int
+            Number of cells in x, y and z
         :param data_path:
         :param seed:
             A seed to initialize the BitGenerator.
@@ -39,8 +41,18 @@ class DefineParams:
         """
         self.seed = seed
 
+        # Turn on / off alterations:
+        self.use_add_noise = False
+        self.use_linear_deform = False
+        self.use_gaussian_deform = False
+        self.use_fault_deform = True
+
         # Synthetic 1D reflection model
-        size_tr = 200
+        # The size of the model (size_tr) should be larger than the patch_size to cover up for
+        # tilting layers and large fault offsets.
+        # The cropping later is used to keep only the core part defined by patch_size
+        buffer = 36
+        size_tr = int(patch_size + 2 * buffer)
         self.num_horizons_rng = (5, 60)  # number of horizons in 1D model
         nx, ny, nz = ([patch_size] * 3)
         nxy = nx * ny
@@ -88,11 +100,11 @@ class DefineParams:
         self.hcut = 80  # Bandpass filter: Upper cutoff
 
         # Wavelet
-        self.t_lng = 0.082  # Ricker wavelet: Length
+        self.t_lng = 0.082  # Ricker wavelet: Length ORIGINAL
         self.f0_rng = (20, 35)  # Wavelet freq range
 
         # Gaussian deformation
-        self.num_gauss = 4  # TODO try making this number vary
+        self.num_gauss_rng = (1, 4)
         self.a_rng = (0, 1)  # Sinusoidal deformation: Amplitude
         self.b_rng = (0, 5)  # Sinusoidal deformation: Frequency
         self.c_rng = (0, nx_tr - 1)  # Sinusoidal deformation: Initial phase
@@ -101,19 +113,22 @@ class DefineParams:
 
         # Planar deformation
         self.e_rng = (0, 1)  # Linear deformation: Intercept
-        self.f_rng = (0, 0.1)  # Gradient X direction
-        self.g_rng = (0, 0.1)  # Gradient Y direction
+        self.f_rng = (0.05, 0.4)  # Gradient X direction  ORIGINALLY (0, 0.1)
+        self.g_rng = (0.05, 0.4)  # Gradient X direction  ORIGINALLY (0, 0.1)
 
+        # Faults
+        #  No fault center are supposed to be closer than 32 pixels from cropped boundary
         self.x0_rng = (32, nx - 1 - 32)
         self.y0_rng = (32, ny - 1 - 32)
         self.z0_rng = (32, nz - 1 - 32)
-
-        # Faults
-        self.min_dist = 100  # Minimum distance between faults, was 20!
-        self.num_flts_rng = (5, 8)  # number of faults
-        self.throw_rng = (5, 30)  # Fault: Displacement
+        self.min_dist = 100  # Minimum distance between faults, Original was 20!
+        self.num_flts_rng = (3, 6)  # number of faults
+        # self.num_flts_rng = (5, 8)  # number of faults ORIGINAL
+        # self.num_flts_rng = (1, 1)  # number of faults
+        # self.throw_rng = (5, 30)  # Fault: Displacement ORIGINAL
+        self.throw_rng = (5, 40)  # Fault: Displacement TESTING
         self.dip_rng = (62, 82)
-        self.strike_rng = (0, 360)
+        self.strike_rng = (0, 180)
 
 
 class GenerateParams:
@@ -126,6 +141,9 @@ class GenerateParams:
 
         # Deformation Parameters
         # 2D Gaussian Deformation
+        prm.num_gauss = int(self.rng.uniform(prm.num_gauss_rng[0], prm.num_gauss_rng[1]))  #
+        # TODO
+        # We can make the amplitude (a) of the gaussian deformation vary
         self.a = self.randomize_prm(prm.a_rng, pos_neg=True)
         self.b = self.randomize_prm(prm.b_rng, prm.num_gauss, pos_neg=True)
         self.c = self.randomize_prm(prm.c_rng, prm.num_gauss)
@@ -137,7 +155,7 @@ class GenerateParams:
         self.g = self.randomize_prm(prm.g_rng, pos_neg=True)
 
         # Fault Throw
-        #self.num_faults = np.random.randint(prm.num_flts_rng[0], prm.num_flts_rng[1] + 1, 1)[0]
+        # self.num_faults = np.random.randint(prm.num_flts_rng[0], prm.num_flts_rng[1] + 1, 1)[0]
         self.num_faults = int(self.rng.uniform(prm.num_flts_rng[0], prm.num_flts_rng[1]))
 
         # Signal Noise Ratio
@@ -148,11 +166,11 @@ class GenerateParams:
 
     def randomize_prm(self, lmts, n_rand=1, pos_neg=False):
         if pos_neg:
-            #coeff = np.random.choice([-1, 1])
-            coeff = self.rng.choice([-1, 1])
+            # coeff = np.random.choice([-1, 1])
+            coeff = self.rng.choice([-1, 1], n_rand)
         else:
             coeff = 1
-        #prm = coeff * np.random.uniform(lmts[0], lmts[1], n_rand)
+        # prm = coeff * np.random.uniform(lmts[0], lmts[1], n_rand)
         prm = coeff * self.rng.uniform(lmts[0], lmts[1], n_rand)
         return prm
 
@@ -161,8 +179,14 @@ class GenerateParams:
         throw = self.randomize_prm(prm.throw_rng, self.num_faults, pos_neg=True)
         dip = self.randomize_prm(prm.dip_rng, self.num_faults)
         strike = self.randomize_prm(prm.strike_rng, self.num_faults)
-        #type_flt = np.random.randint(0, 1 + 1, self.num_faults)  # 0: Linear, 1: Gaussian
-        type_flt = self.rng.integers(low=0, high=1 + 1, size=self.num_faults)  # 0: Linear, 1: Gaussian
+        # type_flt determines how the throw is distributed:
+        # 0: constant throw, 1: linear throw, 2: Gaussian throw
+        # Faults with constant throw typically cuts through the whole volume, and is given a lower probability
+        types = self.rng.integers(11, size=self.num_faults)  # random integers between 0 and 10
+        types[(0 < types) & (types < 6)] = 1 # 5 of eleven values are set to 1
+        types[types > 5] = 2 # 5 of eleven values are set to 2
+        type_flt = types
+        # type_flt = self.rng.integers(2, size=self.num_faults)
         return x0_f, y0_f, z0_f, throw, dip, strike, type_flt
 
     def pick_fault_center(self, prm, num_faults, min_dist):
@@ -180,8 +204,10 @@ class GenerateParams:
             return flag_dist, dist
 
         flag_dist = False
-        x0_f = 0; y0_f = 0; z0_f = 0
-        while flag_dist == False:
+        x0_f = 0
+        y0_f = 0
+        z0_f = 0
+        while not flag_dist:
             x0_f = self.randomize_prm(prm.x0_rng, num_faults)
             y0_f = self.randomize_prm(prm.y0_rng, num_faults)
             z0_f = self.randomize_prm(prm.z0_rng, num_faults)
@@ -195,10 +221,12 @@ class GenerateParams:
 
 class CreateSynthRefl(GenerateParams):
     def __init__(self, prm,
-            ax_one_d=None,
-            ax_deform_x=None, ax_deform_y=None, ax_deform_z=None,
-            ax_fault_x=None, ax_fault_y=None, ax_fault_z=None):
+                 ax_one_d=None,
+                 ax_deform_x=None, ax_deform_y=None, ax_deform_z=None,
+                 ax_fault_x=None, ax_fault_y=None, ax_fault_z=None,
+                 ax_fault_3d=None):
         super().__init__(prm)
+
         self.one_d_model = np.zeros([prm.nz_tr])
         self.labels = np.zeros(prm.nxyz_tr)
         refl = self.create_1d_model(prm)
@@ -210,10 +238,13 @@ class CreateSynthRefl(GenerateParams):
         self.refl = self.deformation(prm)
         self.qc_plot_deform(prm, ax_deform_x, ax_deform_y, ax_deform_z)
 
-        flag_zero_counts = False
-        while flag_zero_counts == False:
+        if prm.use_fault_deform:
+            flag_zero_counts = False
+        else:
+            flag_zero_counts = True
+        while not flag_zero_counts:
             self.x0_f, self.y0_f, self.z0_f, self.throw, self.dip, self.strike, self.type_flt = self.param_fault(prm)
-            self.throw_shift(prm)
+            self.throw_shift(prm, ax_fault_3d=ax_fault_3d)
             flag_zero_counts = self.zero_counts(prm)
         self.qc_plot_fault(prm, ax_fault_x, ax_fault_y, ax_fault_z)
 
@@ -237,7 +268,7 @@ class CreateSynthRefl(GenerateParams):
 
     def qc_plot_1d_model(self, prm, ax_one_d):
         info_txt = None
-        if isinstance(ax_one_d, mpl.axes._subplots.Axes):
+        if ax_one_d is not None:
             ax_one_d.plot(self.one_d_model, np.arange(len(self.one_d_model)) * prm.dt * 1000.)
             ax_one_d.set_ylim(ax_one_d.get_ylim()[::-1])
             ax_one_d.set_xlim(-1, 1)
@@ -284,48 +315,59 @@ class CreateSynthRefl(GenerateParams):
         )
 
         gauss_2d_cp = cp.zeros_like(xy_cp[:, 0])
-        for i in range(len(self.b)):
-            gauss_2d_cp += func_gauss2d(xy_cp[:, 0], xy_cp[:, 1], b_cp[i], c_cp[i], d_cp[i], sigma_cp[i])
+        if prm.use_gaussian_deform:
+            for i in range(len(self.b)):
+                gauss_2d_cp += func_gauss2d(xy_cp[:, 0], xy_cp[:, 1], b_cp[i], c_cp[i], d_cp[i], sigma_cp[i])
         s1_cp = a_cp + (1.5 / z_cp) * cp.outer(cp.transpose(gauss_2d_cp), z_cp)
-        s2_cp = func_planar(xy_cp[:, 0], xy_cp[:, 1], e_cp, f_cp, g_cp)
+        if prm.use_linear_deform:
+            s2_cp = func_planar(xy_cp[:, 0], xy_cp[:, 1], e_cp, f_cp, g_cp)
+        else:
+            s2_cp = cp.zeros_like(xy_cp[:, 0])
 
         refl_cp = cp.asarray(self.refl)
-        for i in range(prm.nxy_tr):
-            s = s1_cp[i, :] + s2_cp[i] + z_cp
-            mat = cp.tile(z_cp, (len(s), 1)) - cp.tile(cp.expand_dims(s, 1), (1, len(z_cp)))
-            refl_cp[i, :] = cp.dot(refl_cp[i, :], cp.sinc(mat))
+        if prm.use_gaussian_deform or prm.use_linear_deform:
+            for i in range(prm.nxy_tr):
+                s = s1_cp[i, :] + s2_cp[i] + z_cp
+                mat = cp.tile(z_cp, (len(s), 1)) - cp.tile(cp.expand_dims(s, 1), (1, len(z_cp)))
+                refl_cp[i, :] = cp.dot(refl_cp[i, :], cp.sinc(mat))
 
         return np.reshape(cp.asnumpy(refl_cp), [prm.nxy_tr, prm.nz_tr])
 
     def qc_plot_deform(self, prm, ax_deform_x, ax_deform_y, ax_deform_z):
         tmp = None
         info_txt = None
-        if isinstance(ax_deform_x, mpl.axes._subplots.Axes):
+        if ax_deform_x is not None:
             half_way = int(0.5 * prm.ny_tr)
             tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             ax_deform_x.imshow(np.transpose(tmp[:, half_way, :]))
             ax_deform_x.set_xlabel('X direction at Y={}'.format(half_way))
-            yticks = ax_deform_x.get_yticks() * prm.dt * 1000
-            ax_deform_x.set_yticklabels(yticks.astype(int))
-            info_txt = 'Gaussian deform\n no. gauss: {:.0f}\n ampl: {:.2f}\n'.format(
-                prm.num_gauss, self.a[0])
-            info_txt += (" freq: [" + ', '.join(['%.2f']*len(self.b)) + "]") % tuple(self.b)
-            info_txt += '\nPlanar deform\n Intercept: {:.2f}\n X grad: {:.2f}\n Y grad: {:.2f}'.format(
-                self.e[0], self.f[0], self.g[0])
-            #ax_deform_x.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            # yticks = ax_deform_x.get_yticks() * prm.dt * 1000
+            # ax_deform_x.set_yticklabels(yticks.astype(int))
+            if prm.use_gaussian_deform:
+                info_txt = 'Gaussian deform\n no. gauss: {:.0f}\n ampl: {:.2f}\n'.format(
+                    prm.num_gauss, self.a[0])
+                info_txt += (" freq: [" + ', '.join(['%.2f'] * len(self.b)) + "]") % tuple(self.b)
+            else:
+                info_txt = 'No Gaussian deform'
+            if prm.use_linear_deform:
+                info_txt += '\nPlanar deform\n Intercept: {:.2f}\n X grad: {:.2f}\n Y grad: {:.2f}'.format(
+                    self.e[0], self.f[0], self.g[0])
+            else:
+                info_txt += '\nNo planar deform'
+            # ax_deform_x.text(10, 10, info_txt, ha='left', va='top', **text_style)
 
-        if isinstance(ax_deform_y, mpl.axes._subplots.Axes):
+        if ax_deform_y is not None:
             half_way = int(0.5 * prm.nx_tr)
             if tmp is None:
                 tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             ax_deform_y.imshow(np.transpose(tmp[half_way, :, :]))
-            yticks = ax_deform_y.get_yticks() * prm.dt * 1000
-            ax_deform_y.set_yticklabels(yticks.astype(int))
+            # yticks = ax_deform_y.get_yticks() * prm.dt * 1000
+            # ax_deform_y.set_yticklabels(yticks.astype(int))
             ax_deform_y.set_xlabel('Y direction at X={}'.format(half_way))
-            #if info_txt is not None:
+            # if info_txt is not None:
             #    ax_deform_y.text(10, 10, info_txt, ha='left', va='top', **text_style)
 
-        if isinstance(ax_deform_z, mpl.axes._subplots.Axes):
+        if ax_deform_z is not None:
             half_way = int(0.5 * prm.nz_tr)
             if tmp is None:
                 tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
@@ -334,22 +376,35 @@ class CreateSynthRefl(GenerateParams):
             if info_txt is not None:
                 ax_deform_z.text(10, 10, info_txt, ha='left', va='top', **text_style)
 
-    def throw_shift(self, prm):
+    def throw_shift(self, prm, ax_fault_3d=None):
         """ Add fault throw with linear and gaussian offset """
 
-        def z_proj(x, y, z, x0_f, y0_f, z0_f, theta, phi):
-            x1 = x0_f + (prm.nx_tr - prm.nx) / 2
-            y1 = y0_f + (prm.ny_tr - prm.ny) / 2
-            z1 = z0_f + (prm.nz_tr - prm.nz) / 2
-            z_flt_plane = z1 + (np.cos(phi) * (x - x1) + np.sin(phi) * (y - y1)) * np.tan(theta)
-            return z_flt_plane
+        def fault_plane(_x, _y, _x1, _y1, _z1, _theta, _phi):
+            return _z1 + (np.cos(_phi) * (_x - _x1) + np.sin(_phi) * (_y - _y1)) * np.tan(_theta)
+
+        def z_proj(_x, _y, _z, x0_f, y0_f, z0_f, _theta, _phi):
+            _x1 = x0_f + (prm.nx_tr - prm.nx) / 2
+            _y1 = y0_f + (prm.ny_tr - prm.ny) / 2
+            _z1 = z0_f + (prm.nz_tr - prm.nz) / 2
+
+            _z_flt_plane = fault_plane(_x, _y, _x1, _y1, _z1, _theta, _phi)
+            if ax_fault_3d is not None:
+                # Create 2D meshgrids for x and y
+                x2d = np.reshape(_x, (prm.nx_tr, prm.ny_tr, prm.nz_tr))[:, :, 0]
+                y2d = np.reshape(_y, (prm.nx_tr, prm.ny_tr, prm.nz_tr))[:, :, 0]
+                _ = ax_fault_3d.plot_surface(x2d, y2d, fault_plane(x2d, y2d, _x1, _y1, _z1, _theta, _phi))
+            return _z_flt_plane
 
         def fault_throw(theta, phi, throw, z0_f, type_flt, prm):
             """ Define z shifts"""
+            # TODO
+            # The z shift becomes very small when z < 32. !
             z1 = (prm.nz_tr - prm.nz) / 2 + z0_f
-            z2 = (prm.nz_tr - prm.nz) / 2 + prm.nz
+            z2 = (prm.nz_tr - prm.nz) / 2 + prm.nz  # removing the last prm.nz made a huge difference
             z3 = (prm.nz_tr - prm.nz) / 2
-            if type_flt == 0:  # Linear offset
+            if type_flt == 0:  # constant offset
+                    z_shift = throw * np.ones(prm.nz_tr)
+            elif type_flt == 1:  # Linear offset
                 if throw > 0:  # Normal fault
                     z_shift = throw * np.cos(theta) * (prm.z - z1) / (z2 - z1)
                     z_shift[z_shift < 0] = 0
@@ -363,7 +418,7 @@ class CreateSynthRefl(GenerateParams):
             """ flag offset """
             flag_offset = np.zeros([prm.nxy_tr, prm.nz_tr], dtype=bool)
             for i in range(prm.nxy_tr):
-                flag_offset[i, :] = np.abs(z_shift) > 1
+                flag_offset[i, :] = np.abs(z_shift) > 0.5  # Original limit was 1
             flag_offset = np.reshape(flag_offset, prm.nxyz_tr)
             return z_shift, flag_offset
 
@@ -378,8 +433,8 @@ class CreateSynthRefl(GenerateParams):
             return xyz1
 
         flag_zero_counts = False
-        while flag_zero_counts == False:
-            self.x0_f, self.y0_f, self.z0_f, self.throw, self.dip, self.strike, self.type_flt = self.param_fault(prm)
+        while not flag_zero_counts:
+            # self.x0_f, self.y0_f, self.z0_f, self.throw, self.dip, self.strike, self.type_flt = self.param_fault(prm)
             for i in range(len(self.throw)):
                 # z values on a fault plane
                 theta = self.dip[i] / 180 * np.pi
@@ -400,10 +455,11 @@ class CreateSynthRefl(GenerateParams):
 
                 # Fault Label
                 labels = self.labels.copy()
-                if i > 0:
-                    labels = replace(labels, idx_repl, x1, y1, z1, prm)
-                    labels[labels > 0.4] = 1
-                    labels[labels <= 0.4] = 0
+                # if i > 0:
+                #     labels = replace(labels, idx_repl, x1, y1, z1, prm)
+                #     # XXX 0.01 was 0.4
+                #     labels[labels > 0.01] = 1
+                #     labels[labels <= 0.01] = 0
                 flt_flag = (0.5 * np.tan(self.dip[i] / 180 * np.pi) > abs(z - z_flt_plane)) & flag_offset
                 labels[flt_flag] = 1
                 self.labels = labels
@@ -416,48 +472,51 @@ class CreateSynthRefl(GenerateParams):
         # create transparent colormap for labels
         color1 = colorConverter.to_rgba('black')
         color2 = colorConverter.to_rgba('white')
-        cmap2 = mpl.colors.LinearSegmentedColormap.from_list('my_cmap2',[color1, color2],256)
+        cmap2 = mpl.colors.LinearSegmentedColormap.from_list('my_cmap2', [color2, color1], 256)
         cmap2._init()
         # create your alpha array and fill the colormap with them.
         # here it is progressive, but you can create whathever you want
-        alphas = np.linspace(0, 0.8, cmap2.N + 3)
+        alphas = np.linspace(0, 1.0, cmap2.N + 3)
         cmap2._lut[:, -1] = alphas
 
-        if isinstance(ax_fault_x, mpl.axes._subplots.Axes):
+        if ax_fault_x is not None:
             half_way = int(0.5 * prm.ny_tr)
             tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             lbls = np.reshape(self.labels, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
-            ax_fault_x.imshow(np.transpose(tmp[:, half_way, :]), origin='lower')
+            # ax_fault_x.imshow(np.transpose(tmp[:, half_way, :]), origin='lower')
             ax_fault_x.imshow(np.transpose(lbls[:, half_way, :]), cmap=cmap2, origin='lower')
             ax_fault_x.set_xlabel('X direction at Y={}'.format(half_way))
             ax_fault_x.set_ylim(ax_fault_x.get_ylim()[::-1])
-            info_txt = 'Faults\n no. faults: {}\n min. dist: {}\n'.format(self.num_faults, prm.min_dist)
-            info_txt += (" throw: [" + ', '.join(['%.0f']*len(self.throw)) + "]\n") % tuple(self.throw)
-            info_txt += (" dip: [" + ', '.join(['%.0f']*len(self.dip)) + "]\n") % tuple(self.dip)
-            info_txt += (" strike: [" + ', '.join(['%.0f']*len(self.strike)) + "]\n") % tuple(self.strike)
-            info_txt += (" type: [" + ', '.join(['%i']*len(self.type_flt)) + "]") % tuple(self.type_flt)
-            #ax_fault_x.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            if prm.use_fault_deform:
+                info_txt = 'Faults\n no. faults: {}\n min. dist: {}\n'.format(self.num_faults, prm.min_dist)
+                info_txt += (" throw: [" + ', '.join(['%.0f'] * len(self.throw)) + "]\n") % tuple(self.throw)
+                info_txt += (" dip: [" + ', '.join(['%.0f'] * len(self.dip)) + "]\n") % tuple(self.dip)
+                info_txt += (" strike: [" + ', '.join(['%.0f'] * len(self.strike)) + "]\n") % tuple(self.strike)
+                info_txt += (" type: [" + ', '.join(['%i'] * len(self.type_flt)) + "]") % tuple(self.type_flt)
+            else:
+                info_txt = 'No Faults'
+            # ax_fault_x.text(10, 10, info_txt, ha='left', va='top', **text_style)
 
-        if isinstance(ax_fault_y, mpl.axes._subplots.Axes):
+        if ax_fault_y is not None:
             half_way = int(0.5 * prm.nx_tr)
             if tmp is None:
                 tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             if lbls is None:
                 lbls = np.reshape(self.labels, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
-            ax_fault_y.imshow(np.transpose(tmp[half_way, :, :]), origin='lower')
+            # ax_fault_y.imshow(np.transpose(tmp[half_way, :, :]), origin='lower')
             ax_fault_y.imshow(np.transpose(lbls[half_way, :, :]), cmap=cmap2, origin='lower')
             ax_fault_y.set_xlabel('Y direction at X={}'.format(half_way))
             ax_fault_y.set_ylim(ax_fault_y.get_ylim()[::-1])
-            #if info_txt is not None:
+            # if info_txt is not None:
             #    ax_fault_y.text(10, 10, info_txt, ha='left', va='top', **text_style)
 
-        if isinstance(ax_fault_z, mpl.axes._subplots.Axes):
+        if ax_fault_z is not None:
             half_way = int(0.5 * prm.nz_tr)
             if tmp is None:
                 tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             if lbls is None:
                 lbls = np.reshape(self.labels, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
-            ax_fault_z.imshow(tmp[:, :, half_way])
+            # ax_fault_z.imshow(tmp[:, :, half_way])
             ax_fault_z.imshow(lbls[:, :, half_way], cmap=cmap2)
             ax_fault_z.set_xlabel('X direction at TWT={:.0f}ms'.format(half_way * prm.dt * 1000.))
             if info_txt is not None:
@@ -470,11 +529,14 @@ class CreateSyntheticTrace(CreateSynthRefl):
                  ax_deform_x=None, ax_deform_y=None, ax_deform_z=None,
                  ax_fault_x=None, ax_fault_y=None, ax_fault_z=None,
                  ax_one_d_conv=None, ax_one_d_noise=None,
-                 ax_seismic_x=None, ax_seismic_y=None, ax_seismic_z=None):
+                 ax_seismic_x=None, ax_seismic_y=None, ax_seismic_z=None,
+                 ax_fault_3d=None):
         super().__init__(prm,
                          ax_one_d=ax_one_d,
                          ax_deform_x=ax_deform_x, ax_deform_y=ax_deform_y, ax_deform_z=ax_deform_z,
-                         ax_fault_x=ax_fault_x, ax_fault_y=ax_fault_y, ax_fault_z=ax_fault_z)
+                         ax_fault_x=ax_fault_x, ax_fault_y=ax_fault_y, ax_fault_z=ax_fault_z,
+                         ax_fault_3d=ax_fault_3d)
+        self.wavelet = None
         self.traces = np.zeros([prm.nxy_tr, prm.nz_tr])
         self.convolve_wavelet(prm)
         self.qc_plot_1d_conv(prm, ax_one_d_conv)
@@ -489,69 +551,80 @@ class CreateSyntheticTrace(CreateSynthRefl):
     def convolve_wavelet(self, prm):
         ''' Convolve reflectivity model with a Ricker wavelet '''
         this_wavelet = bruges.filters.wavelets.ricker(prm.t_lng, prm.dt, self.f0)
-        self.wavelet = this_wavelet
+        self.wavelet = this_wavelet.amplitude
         for i in range(prm.nxy_tr):
-            self.traces[i, :] = np.convolve(self.refl[i, :], this_wavelet, mode='same')
+            self.traces[i, :] = np.convolve(self.refl[i, :], this_wavelet.amplitude, mode='same')
 
     def qc_plot_1d_conv(self, prm, ax_one_d_conv):
         info_txt = None
-        if isinstance(ax_one_d_conv, mpl.axes._subplots.Axes):
+        if ax_one_d_conv is not None:
             one_d_conv = np.convolve(self.one_d_model, self.wavelet, mode='same')
             ax_one_d_conv.plot(one_d_conv, np.arange(len(self.one_d_model)) * prm.dt * 1000.)
             ax_one_d_conv.set_ylim(ax_one_d_conv.get_ylim()[::-1])
             ax_one_d_conv.set_ylabel('TWT [ms]')
             ax_one_d_conv.set_xlabel('Seismic amplitude')
             info_txt = 'Wavelet: Ricker, {:.1f}Hz\n'.format(self.f0[0])
-            info_txt += ' duration: {:.1f}ms, dt: {:.1f}ms'.format(prm.t_lng*1000., prm.dt*1000.)
+            info_txt += ' duration: {:.1f}ms, dt: {:.1f}ms'.format(prm.t_lng * 1000., prm.dt * 1000.)
             ax_one_d_conv.text(one_d_conv.min(), 1, info_txt, ha='left', va='top', **text_style)
 
     def add_noise(self, prm):
         ''' Add some noise to traces to imitate real seismic data '''
-        b, a = this_butter_filter(prm)
-        for i in range(prm.nxy_tr):
-            noise = bruges.noise.noise_db(self.traces[i, :], self.snr)
-            self.traces[i, :] = filtfilt(b, a, self.traces[i, :] + noise)
+        if prm.use_add_noise:
+            b, a = this_butter_filter(prm)
+            for i in range(prm.nxy_tr):
+                noise = bruges.noise.noise_db(self.traces[i, :], self.snr)
+                self.traces[i, :] = filtfilt(b, a, self.traces[i, :] + noise)
 
     def qc_plot_1d_noise(self, prm, ax_one_d_noise):
         info_txt = None
-        if isinstance(ax_one_d_noise, mpl.axes._subplots.Axes):
+        if ax_one_d_noise is not None:
             b, a = this_butter_filter(prm)
+            one_d_noisy = None
             one_d_conv = np.convolve(self.one_d_model, self.wavelet, mode='same')
-            noise = bruges.noise.noise_db(one_d_conv, self.snr)
-            one_d_noisy = filtfilt(b, a, one_d_conv + noise)
-            ax_one_d_noise.plot(one_d_noisy, np.arange(len(self.one_d_model)) * prm.dt * 1000.)
+            if prm.use_add_noise:
+                noise = bruges.noise.noise_db(one_d_conv, self.snr)
+                one_d_noisy = filtfilt(b, a, one_d_conv + noise)
+                ax_one_d_noise.plot(one_d_noisy, np.arange(len(self.one_d_model)) * prm.dt * 1000.)
+            else:
+                ax_one_d_noise.plot(one_d_conv, np.arange(len(self.one_d_model)) * prm.dt * 1000.)
             ax_one_d_noise.set_ylim(ax_one_d_noise.get_ylim()[::-1])
             ax_one_d_noise.set_ylabel('TWT [ms]')
             ax_one_d_noise.set_xlabel('Seismic amplitude')
-            info_txt = 'Noise: SNR {:.1f}\n'.format(self.snr[0])
-            info_txt += 'low: {:.1f}Hz, high: {:.1f}Hz'.format(prm.lcut, prm.hcut)
-            ax_one_d_noise.text(one_d_noisy.min(), 1, info_txt, ha='left', va='top', **text_style)
+            if prm.use_add_noise:
+                info_txt = 'Noise: SNR {:.1f}\n'.format(self.snr[0])
+                info_txt += 'low: {:.1f}Hz, high: {:.1f}Hz'.format(prm.lcut, prm.hcut)
+                ax_one_d_noise.text(one_d_noisy.min(), 1, info_txt, ha='left', va='top', **text_style)
+            else:
+                info_txt = 'Noise: None'
+                ax_one_d_noise.text(one_d_conv.min(), 1, info_txt, ha='left', va='top', **text_style)
 
     def qc_plot_seismic(self, prm, ax_seismic_x, ax_seismic_y, ax_seismic_z):
         tmp = None
         info_txt = None
-        if isinstance(ax_seismic_x, mpl.axes._subplots.Axes):
+        if ax_seismic_x is not None:
             half_way = int(0.5 * prm.ny_tr)
             tmp = np.reshape(self.traces, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             ax_seismic_x.imshow(np.transpose(tmp[:, half_way, :]), cmap='seismic')
             ax_seismic_x.set_xlabel('X direction at Y={}'.format(half_way))
-            yticks = ax_seismic_x.get_yticks() * prm.dt * 1000
-            ax_seismic_x.set_yticklabels(yticks.astype(int))
+            # XXX
+            # yticks = ax_seismic_x.get_yticks() * prm.dt * 1000
+            # ax_seismic_x.set_yticklabels(yticks.astype(int))
             info_txt = 'Simulated seismic'
-            #ax_seismic_x.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            # ax_seismic_x.text(10, 10, info_txt, ha='left', va='top', **text_style)
 
-        if isinstance(ax_seismic_y, mpl.axes._subplots.Axes):
+        if ax_seismic_y is not None:
             half_way = int(0.5 * prm.nx_tr)
             if tmp is None:
                 tmp = np.reshape(self.traces, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             ax_seismic_y.imshow(np.transpose(tmp[half_way, :, :]), cmap='seismic')
-            yticks = ax_seismic_y.get_yticks() * prm.dt * 1000
-            ax_seismic_y.set_yticklabels(yticks.astype(int))
+            # XXX
+            # yticks = ax_seismic_y.get_yticks() * prm.dt * 1000
+            # ax_seismic_y.set_yticklabels(yticks.astype(int))
             ax_seismic_y.set_xlabel('Y direction at X={}'.format(half_way))
-            #if info_txt is not None:
+            # if info_txt is not None:
             #    ax_seismic_y.text(10, 10, info_txt, ha='left', va='top', **text_style)
 
-        if isinstance(ax_seismic_z, mpl.axes._subplots.Axes):
+        if ax_seismic_z is not None:
             half_way = int(0.5 * prm.nz_tr)
             if tmp is None:
                 tmp = np.reshape(self.traces, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
@@ -579,8 +652,8 @@ class CreateSyntheticTrace(CreateSynthRefl):
         std_func = lambda x: (x - np.mean(x)) / np.std(x)
         tr_std = std_func(self.traces)
         # Thew following two lines caused the output to look pixelized
-        #tr_std[tr_std > 1] = 1
-        #tr_std[tr_std < -1] = -1
+        # tr_std[tr_std > 1] = 1
+        # tr_std[tr_std < -1] = -1
         self.traces = tr_std
 
 
@@ -618,6 +691,9 @@ def datagen(root_dir, _seed, mode, patch_size=128):
         return_object.labels
 
     """
+    # Testing plotting fault planes in 3D
+    ax3d = None
+
     fig, axes = plt.subplots(4, 3, figsize=(12, 18))
     fig.suptitle('{}, seed: {}'.format(mode, _seed))
 
@@ -627,7 +703,8 @@ def datagen(root_dir, _seed, mode, patch_size=128):
                                        ax_one_d=axes[0][0], ax_one_d_conv=axes[0][1], ax_one_d_noise=axes[0][2],
                                        ax_deform_x=axes[1][1], ax_deform_y=axes[1][2], ax_deform_z=axes[1][0],
                                        ax_fault_x=axes[2][1], ax_fault_y=axes[2][2], ax_fault_z=axes[2][0],
-                                       ax_seismic_x=axes[3][1], ax_seismic_y=axes[3][2], ax_seismic_z=axes[3][0]
+                                       ax_seismic_x=axes[3][1], ax_seismic_y=axes[3][2], ax_seismic_z=axes[3][0],
+                                       ax_fault_3d=ax3d
                                        )
 
     # Save qc plot
@@ -641,27 +718,41 @@ def datagen(root_dir, _seed, mode, patch_size=128):
     logger.info('  Wavelet_frequency: {:.2f}'.format(synt_traces.f0[0]))  # Hz
     logger.info('  Wavelet_duration: {:.2f}'.format(prm.t_lng * 1000.))  # ms
     logger.info('  Wavelet_dt: {:.2f}'.format(prm.dt * 1000.))
-    logger.info('  SNR: {:.2f}'.format(synt_traces.snr[0]))
-    logger.info('  Noise_band_low: {:.2f}'.format(prm.lcut))  # Hz
-    logger.info('  Noise_band_high: {:.2f}'.format(prm.hcut))  # Hz
-    logger.info('  Number_Gaussians: {:.0f}'.format(prm.num_gauss))
-    _str = '  Gaussian_amplitudes: [' + ', '.join(['{:2f}'] * len(synt_traces.a)) + ']'
-    logger.info(_str.format(*synt_traces.a))
-    _str = '  Gaussian_frequencies: [' + ', '.join(['{:2f}'] * len(synt_traces.b)) + ']'
-    logger.info(_str.format(*synt_traces.b))
-    logger.info('  Deform_intercept: {:.2f}'.format(synt_traces.e[0]))
-    logger.info('  Deform_X_grad: {:.2f}'.format(synt_traces.f[0]))
-    logger.info('  Deform_Y_grad: {:.2f}'.format(synt_traces.g[0]))
-    logger.info('  Number_faults: {}'.format(synt_traces.num_faults))
-    logger.info('  Fault_min_distance: {}'.format(prm.min_dist))
-    _str = '  Fault_throws: [' + ', '.join(['{:.2f}'] * len(synt_traces.throw)) + ']'
-    logger.info(_str.format(*synt_traces.throw))
-    _str = '  Fault_dips: [' + ', '.join(['{:.2f}'] * len(synt_traces.dip)) + ']'
-    logger.info(_str.format(*synt_traces.dip))
-    _str = '  Fault_strikes: [' + ', '.join(['{:.2f}'] * len(synt_traces.strike)) + ']'
-    logger.info(_str.format(*synt_traces.strike))
-    _str = '  Fault_types: [' + ', '.join(['{:}'] * len(synt_traces.type_flt)) + ']'
-    logger.info(_str.format(*synt_traces.type_flt))
+    if prm.use_add_noise:
+        logger.info('  SNR: {:.2f}'.format(synt_traces.snr[0]))
+        logger.info('  Noise_band_low: {:.2f}'.format(prm.lcut))  # Hz
+        logger.info('  Noise_band_high: {:.2f}'.format(prm.hcut))  # Hz
+    else:
+        logger.info('  SNR: No noise')
+    if prm.use_gaussian_deform:
+        logger.info('  Number_Gaussians: {:.0f}'.format(prm.num_gauss))
+        _str = '  Gaussian_amplitudes: [' + ', '.join(['{:2f}'] * len(synt_traces.a)) + ']'
+        logger.info(_str.format(*synt_traces.a))
+        _str = '  Gaussian_frequencies: [' + ', '.join(['{:2f}'] * len(synt_traces.b)) + ']'
+        logger.info(_str.format(*synt_traces.b))
+    else:
+        logger.info('  Number_Gaussians: 0')
+
+    if prm.use_linear_deform:
+        logger.info('  Deform_intercept: {:.2f}'.format(synt_traces.e[0]))
+        logger.info('  Deform_X_grad: {:.2f}'.format(synt_traces.f[0]))
+        logger.info('  Deform_Y_grad: {:.2f}'.format(synt_traces.g[0]))
+    else:
+        logger.info('  No linear deformation')
+
+    if prm.use_fault_deform:
+        logger.info('  Number_faults: {}'.format(synt_traces.num_faults))
+        logger.info('  Fault_min_distance: {}'.format(prm.min_dist))
+        _str = '  Fault_throws: [' + ', '.join(['{:.2f}'] * len(synt_traces.throw)) + ']'
+        logger.info(_str.format(*synt_traces.throw))
+        _str = '  Fault_dips: [' + ', '.join(['{:.2f}'] * len(synt_traces.dip)) + ']'
+        logger.info(_str.format(*synt_traces.dip))
+        _str = '  Fault_strikes: [' + ', '.join(['{:.2f}'] * len(synt_traces.strike)) + ']'
+        logger.info(_str.format(*synt_traces.strike))
+        _str = '  Fault_types: [' + ', '.join(['{:}'] * len(synt_traces.type_flt)) + ']'
+        logger.info(_str.format(*synt_traces.type_flt))
+    else:
+        logger.info('  Number_faults: 0')
     logger.info(' ')
 
 
@@ -681,6 +772,10 @@ def test(path, seed=None, patch_size=128):
         int
     :return:
     """
+    from mpl_toolkits.mplot3d import Axes3D
+    from matplotlib import projections
+    # fig3d, ax3d = plt.subplots(1, 1, subplot_kw={'projection': '3d'})
+    ax3d = None
 
     fig, axes = plt.subplots(4, 3, figsize=(12, 18))
     this_date = datetime.datetime.now().strftime('%Y-%m-%dT%H.%M.%S.%f')
@@ -692,16 +787,17 @@ def test(path, seed=None, patch_size=128):
                                        ax_one_d=axes[0][0], ax_one_d_conv=axes[0][1], ax_one_d_noise=axes[0][2],
                                        ax_deform_x=axes[1][1], ax_deform_y=axes[1][2], ax_deform_z=axes[1][0],
                                        ax_fault_x=axes[2][1], ax_fault_y=axes[2][2], ax_fault_z=axes[2][0],
-                                       ax_seismic_x=axes[3][1], ax_seismic_y=axes[3][2], ax_seismic_z=axes[3][0]
+                                       ax_seismic_x=axes[3][1], ax_seismic_y=axes[3][2], ax_seismic_z=axes[3][0],
+                                       ax_fault_3d=ax3d
                                        )
 
     # Save qc plot
-    fig.savefig(os.path.join(path, '{}.png'.format(this_date)))
+    # fig.savefig(os.path.join(path, '{}.png'.format(this_date)))
 
     ## Save data to json
-    #with open(os.path.join(path, '{}_traces.json'.format(this_date)), 'w') as f:
+    # with open(os.path.join(path, '{}_traces.json'.format(this_date)), 'w') as f:
     #    json.dump(synt_traces.traces.tolist(), f)
-    #with open(os.path.join(path, '{}_labels.json'.format(this_date)), 'w') as f:
+    # with open(os.path.join(path, '{}_labels.json'.format(this_date)), 'w') as f:
     #    json.dump(synt_traces.labels.tolist(), f)
 
     logger.info('Generating training data {}, random seed: {}'.format(this_date, prm.seed))
@@ -710,7 +806,7 @@ def test(path, seed=None, patch_size=128):
     logger.info('  {} :'.format(
         synt_traces.num_horizons
     ))
-    logger.info(' Sampling interval : Patch size : Bandpass low filter cutoff : Bandpass high filter cutoff' 
+    logger.info(' Sampling interval : Patch size : Bandpass low filter cutoff : Bandpass high filter cutoff'
                 ' : Wavelet : Wavelet length : ')
     logger.info(' {} : {} : {} : {} : {} : {} '.format(
         prm.dt, prm.nx, prm.lcut, prm.hcut, 'Ricker', prm.t_lng
@@ -721,7 +817,6 @@ def test(path, seed=None, patch_size=128):
 
 if __name__ == '__main__':
     arrange_logging(True, "C:\\tmp\\test.log")
-    seed = None
+    seed = 5
     test("C:\\tmp", seed)
     plt.show()
-
