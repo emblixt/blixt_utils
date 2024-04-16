@@ -16,7 +16,9 @@ import segyio
 
 from blixt_utils.utils import isnan
 from blixt_utils.utils import nan_corrcoef
-from blixt_utils.plotting.helpers import wavelet_plot
+# If wavelet_plot is used, I get an 'ImportError' "cannot import name 'wavelet_plot' from partially initialized
+# module 'blixt_utils.plotting.helpers' (most likely due to a circular import)"
+# from blixt_utils.plotting.helpers import wavelet_plot
 
 logger = logging.getLogger(__name__)
 
@@ -169,8 +171,8 @@ def read_petrel_wavelet(filename,
         time = time[:-1]
         wavelet = wavelet[:-1]
 
-    if verbose:
-        wavelet_plot(None, time, wavelet, header)
+    # if verbose:
+    #     wavelet_plot(None, time, wavelet, header)
 
     if return_dict:
         return {'wavelet': wavelet, 'time': time, 'header': header}
@@ -1366,7 +1368,7 @@ def read_petrel_points(filename):
                     for _i, _key in enumerate(keys):
                         result['data'][_key].append(float(_line[_i]))
                 else:
-                    # Strings are enclosed in " ", and can contain spaces, so we can split the line using spaces
+                    # Strings are enclosed in " ", and can contain spaces, so we cant split the line using spaces
                     # Instead we need to first identify all strings that are enclosed in " "
                     match = re.findall("\".*?\"", line)
                     # TODO Now we assume that the number of elements in match is the same as the number of string elements
@@ -2066,10 +2068,20 @@ def well_reader(lines, file_format='las'):
 
         elif section == "data":
             content = line.split()
+            # TODO
+            # Some las files contain names enclosed in " ", and these names can contain spaces (see
+            # S:\Well\Wells_Norway\QUAD_35\35_4-3\Petrophysics\Interpretation\35_4-3_CPI_OUT_2022-11-06.las )
+            # And we need to be smart to separate out these somehow.
+            # It is done in not-so-smart way in read_petrel_checkshots():
+
             for k, v in zip(generated_keys, content):
                 #v = float(v) if v != null_val else None
                 # replace all null values with np.nan, then we have a unified NaN in all well objects
-                v = float(v) if v.rstrip('0') != null_val else np.nan
+                try:
+                    v = float(v) if v.rstrip('0') != null_val else np.nan
+                except ValueError:  # capture weird data
+                    print(v, type(v))
+                    raise ValueError
                 well_dict = add_section(well_dict, section, k.lower(), v)
 
         elif section == "other":

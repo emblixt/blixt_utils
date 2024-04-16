@@ -52,39 +52,33 @@ def convert(in_data, from_unit=None, to_unit=None):
     success = True
     if (from_unit == 'ft' or from_unit == 'feet') and to_unit == 'm':
         return success, in_data / m_to_ft
-    if (from_unit == 'ft' or from_unit == 'feet') and to_unit == 'km':
-        return success, in_data / (1000. * m_to_ft)
-
     elif from_unit == 'm' and to_unit == 'ft':
         return success, in_data * m_to_ft
-
     elif from_unit == 'us/ft' and to_unit == 'm/s':
         return success, 1. / (m_to_ft * 1.E-6 * in_data)
     elif from_unit == 'us/ft' and to_unit == 'km/s':
         return success, 1. / (m_to_ft * 1.E-3 * in_data)
-
     elif from_unit == 'g/cm3' and to_unit == 'kg/m3':
         return success, 1000. * in_data
     elif from_unit == 'g/cm3' and to_unit == 'mpa/m':
         return success, 0.0098 * in_data
-
     elif from_unit == 'bar' and to_unit == 'mpa':
         return success, bar_to_mpa * in_data
     elif from_unit == 'bar' and to_unit == 'gpa':
         return success, bar_to_gpa * in_data
-
     elif from_unit == 'mpa' and to_unit == 'bar':
         return success, in_data / bar_to_mpa
-
     elif from_unit == 'gpa' and to_unit == 'bar':
         return success, in_data / bar_to_gpa
-
     elif from_unit == 'ms' and to_unit == 's':
         return success, in_data / 1000.
-
     elif from_unit == 's' and to_unit == 'ms':
         return success, in_data * 1000.
-
+    elif (from_unit == 'g/cm3 m/s' or from_unit == 'm/s g/cm3') and to_unit == 'kPa s/m':
+        return success, in_data * 1.
+    elif (from_unit == 'g/cm3 m/s' or from_unit == 'm/s g/cm3' or from_unit == 'kPa s/m') and \
+            (to_unit == 'MPa s/m'):
+        return success, in_data / 1000.
     else:
         success = False
         wrn_txt = "No valid combination of units specified (from {} to {}). No conversion done".format(

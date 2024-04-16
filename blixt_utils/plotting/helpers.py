@@ -4,6 +4,9 @@ import logging
 from matplotlib.ticker import (AutoMinorLocator, MultipleLocator)
 import matplotlib.colors as mcolors
 from itertools import cycle
+import numbers
+
+import blixt_rp.core.well as cw
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +19,161 @@ def next_color():
     return next(cclrs)
 
 
+def set_up_column_plot(ax_names=None, width_ratios=None, height_ratios=None, fig_width=None, fig_height=None):
+    """
+    Sets yp a "column" plot, consisting of a header and log vs depth plot similar to what is seen in
+    CPI plots
+    :param ax_names:
+        list
+        list of names that are used to identify the different columns of the whole plot
+    :param width_ratios:
+    :param height_ratios:
+    :param fig_width:
+        int
+    :param fig_height:
+        int
+    :return:
+    fig, header_axes, plot_axes
+    """
+    n_rows = 2
+
+    if ax_names is None:
+        ax_names = ['main']
+    if isinstance(ax_names, str):
+        ax_names = list(ax_names)
+    if width_ratios is None:
+        width_ratios = [1] * len(ax_names)
+    if isinstance(width_ratios, numbers.Number):
+        width_ratios = [width_ratios] * len(ax_names)
+    if len(ax_names) != len(width_ratios):
+        raise IOError('Length of ax_names ({}) and width_ratios ({}) does not match'.format(
+            len(ax_names), len(width_ratios)))
+
+    n_cols = len(ax_names)
+
+    if height_ratios is None:
+        height_ratios = [1, 5]
+    if fig_height is None:
+        fig_height = 10
+    if fig_width is None:
+        if n_cols < 6:
+            fig_width = n_cols * 3
+        else:
+            fig_width = n_cols * 2.5
+
+    fig = plt.figure(figsize=(fig_width, fig_height))
+    spec = fig.add_gridspec(nrows=n_rows, ncols=n_cols,
+                            height_ratios=height_ratios, width_ratios=width_ratios,
+                            hspace=0., wspace=0.,
+                            left=0.05, bottom=0.03, right=0.98, top=0.96)
+    header_axes = {}
+    plot_axes = {}
+    for i in range(len(ax_names)):
+        header_axes[ax_names[i]] = fig.add_subplot(spec[0, i])
+        plot_axes[ax_names[i]] = fig.add_subplot(spec[1, i])
+    return fig, header_axes, plot_axes
+
+
+def plot_one_column(well, try_these_log_types, templates, header_ax=None, plot_ax=None, z_min=None, z_max=None,
+                    block_name=None, mask=None, fill_betweens=None):
+    """
+
+    :param well:
+        well object
+    :param try_these_log_types:
+        list
+        list of log types, e.g. try_these_log_types = ['Saturation', 'Porosity'] which we will try to plot
+        in this column plot
+    :param templates:
+        dict
+        Dictionary of different templates as returned from Project().load_all_templates()
+    :param header_ax:
+        axis object
+        Where the header will be plotted
+    :param plot_ax:
+        axis object
+        Where the data will be plotted
+    :param z_min & z_max
+        Min and max value of the depth parameter
+    :param fill_betweens:
+        list
+        list of triplets (logtype 1, logtype 2, color) which determines the fill_between color when logtype 1 is plotted
+         to the right of logtype 2 (logtype 1 is not necessarily larger than logtype 2, but plots to the right of
+         logtype 2 given the limits in the templates
+         E.G. [('Density', 'Neutron density', 'b'), ('Neutron density', 'Density', 'y')]
+
+         TODO
+         fill_between only work when the templates of the data to plot contain min and max value limits
+    :return:
+    """
+    if header_ax is None and plot_ax is None:
+        fig, h_ax, p_ax = set_up_column_plot()
+        header_ax = h_ax['main']
+        plot_ax = p_ax['main']
+
+    if block_name is None:
+        block_name = cw.def_lb_name
+
+    tb = well.block[block_name]  # this log block
+    depth = tb.logs['depth'].data
+
+    if mask is None:
+        mask = np.array(np.ones(len(depth)), dtype=bool)  # All True values -> all data is included
+
+    if z_min is None:
+        z_min = np.min(depth[mask])
+    if z_max is None:
+        z_max = np.max(depth[mask])
+
+    log_types = [x for x in try_these_log_types if (len(well.get_logs_of_type(x)) > 0)]
+    # TODO
+    # Now we take the first log of each log type, generalize this so that it by default takes the first, but
+    # can plot all or one specific
+    log_names = {ltype: well.get_logs_of_type(ltype)[0].name for ltype in log_types}
+    limits = [[templates[x]['min'], templates[x]['max']] for x in log_types]
+    styles = [{'lw': templates[x]['line width'],
+               'color': templates[x]['line color'],
+               'ls': templates[x]['line style']} for x in log_types]
+    legends = ['{} [{}]'.format(log_names[x], templates[x]['unit']) for x in log_types]
+
+    if fill_betweens is not None:
+        if not isinstance(fill_betweens, list):
+            raise IOError('fill_betweens must be a list')
+        _fill_betweens = []
+        for fill in fill_betweens:
+            skip = False
+            indexes = []
+            for _logtype in fill[:2]:
+                if _logtype is None:
+                    indexes.append(None)
+                elif _logtype.replace('.', '', 1).isdigit():
+                    indexes.append(_logtype)
+                else:
+                    if _logtype not in log_types:
+                        info_txt = 'Log type {} not found among listed log types'.format(_logtype)
+                        print('INFO: {}'.format(info_txt))
+                        logger.info(info_txt)
+                        _fill_betweens = None
+                        skip = True
+                    indexes.append(log_types.index(_logtype))
+            if skip:
+                continue
+            # _fill_betweens.append((log_types.index(fill[0]), log_types.index(fill[1]), fill[2]))
+            _fill_betweens.append((*indexes, fill[2]))
+    else:
+        _fill_betweens = None
+
+    if len(log_types) == 0:
+        header_plot(header_ax, None, None, None, title='Data is lacking')
+        axis_plot(plot_ax, None, None, None, None, ylim=[z_min, z_max])
+    else:
+        xlims = axis_plot(plot_ax, depth[mask],
+                          [tb.logs[log_names[xx]].data[mask] for xx in log_types],
+                          limits, styles, yticks=False, fill_betweens=_fill_betweens,
+                          ylim=[z_min, z_max])
+        header_plot(header_ax, xlims, legends, styles)
+
+
 def true_plot(ax, y, data, true_color='b', yticks=True, **kwargs):
     """
     Plot data in one subplot
@@ -26,6 +184,8 @@ def true_plot(ax, y, data, true_color='b', yticks=True, **kwargs):
         The depth data of length N
     :param data:
         Boolean array of length N
+            or
+        Array which is either 1 or 0
     :param true_color:
         str
         color string for the coloring the true values
@@ -37,17 +197,143 @@ def true_plot(ax, y, data, true_color='b', yticks=True, **kwargs):
         Number of gridlines in x direction
     :param kwargs:
     """
-    # convert true values to one
-    x = np.zeros(len(data))
-    x[data] = 1
+    ylim = kwargs.pop('ylim', None)
+    if data is None:
+        ax.get_xaxis().set_ticks([])
+        ax.get_yaxis().set_ticks([])
+        return
+
+    if isinstance(data, np.ndarray):
+        if data.dtype is np.dtype('bool'):
+            # convert true values to one
+            x = np.zeros(len(data))
+            x[data] = 1
+        else:
+            x = data
+    else:
+        raise IOError('Data must be an array')
+
     ax.fill_between(x, y, color=true_color, alpha=0.5)
     ax.set_xlim([0.1, 1])
     ax.get_xaxis().set_ticks([])
     if not yticks:
         ax.get_yaxis().set_ticklabels([])
+    if ylim is not None:
+        ax.set_ylim(ylim[::-1])
+    else:
+        ax.set_ylim(ax.get_ylim()[::-1])
 
 
-def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
+def axis_plot_with_color_gradient(ax, y, data, limit, style, yticks=True, nxt=4, cmap=None, vmin=None, vmax=None,
+                                  horizontal_gradient=True, **kwargs):
+    """
+    Plot one data set in one subplot.
+    The data can be colored by a gradient defined by the cmap
+    Recipe is taken from https://stackoverflow.com/questions/19132402/set-a-colormap-under-a-graph
+
+    :param ax:
+        matplotlib axes object
+    :param y:
+        numpy ndarray
+        The depth data of length N
+    :param data:
+        numpy ndarray
+        data of length N, which should be plotted
+    :param limit:
+        list
+        list with min, max value of the data
+        E.G. [0, 150]
+    :param style:
+        dict
+        dictionary that defines the plotting styles of the data
+        E.G. {'lw':1, 'color':'k', 'ls':'-'}
+    :param yticks:
+        bool
+        if False the yticklabels are not shown
+    :param nxt:
+        int
+        Number of gridlines in x direction
+    :param cmap:
+        matplotlib colormap object
+        E.G. matplotlib.pyplot.cm.autumn
+    :param vmin, vmax:
+        floats
+        values that determines the lower and upper value the color map should cover
+    :param horizontal_gradient
+        bool
+        If True, the color gradient is horizontal
+        else it is vertical
+    :param kwargs:
+        :param ylim:
+        list of min max value of the y axis
+    :return:
+        list
+        xlim, the limits (min, max) of the x axis
+    """
+    if cmap is None:
+        from blixt_rp.rp_utils.definitions import gr_cmap
+        cmap = gr_cmap()
+
+    if style is None:
+        style = {'lw': 0.5, 'color': 'k', 'ls': '-'}
+
+    ylim = kwargs.pop('ylim', None)
+    n = kwargs.pop('n', 100)  # length of one side of the 'dummy' image
+    if data is None:
+        ax.get_xaxis().set_ticks([])
+        ax.get_yaxis().set_ticks([])
+        return
+
+    # We need to make sure that the first and last valid value (not NaN) of the data are forced to zero. Else the
+    # ax.fill() function will not deliver the necessary result
+    nanmask = np.ma.masked_invalid(data).mask
+    valid_data = data[~nanmask]
+    valid_data[0] = 0; valid_data[-1] = 0
+
+    # plot only the outline of the polygon, and capture the result
+    poly, = ax.fill(valid_data, y[~nanmask], facecolor='none')
+    # poly, = ax.fill(data, y, 'r')
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+
+    # get the extent of the axes
+    # xmin, xmax = ax.get_xlim()
+    xmin, xmax = limit[0], limit[1]
+    ymin, ymax = ax.get_ylim()
+
+    if vmin is None:
+        vmin = xmin
+    if vmax is None:
+        vmax = xmax
+
+    # create a dummy image
+    if horizontal_gradient:
+        img_data = np.arange(xmin, xmax, (xmax - xmin) / n)
+        img_data = img_data.reshape(img_data.size, 1)
+        extent = [xmin, xmax, ymin, ymax]
+    else:
+        img_data = np.tile(valid_data[::-10], (len(valid_data[::-10]), 1))
+        extent = [xmin, xmax, np.min(y[~nanmask]), np.max(y[~nanmask])]
+
+    img_data = np.transpose(img_data)
+
+    im = ax.imshow(img_data, aspect='auto', origin='upper', cmap=cmap, extent=extent,
+                   vmin=vmin, vmax=vmax)
+    im.set_clip_path(poly)
+
+    ax.plot(valid_data, y[~nanmask], **style)
+    ax.set_xlim(*limit)
+    if ylim is not None:
+        ax.set_ylim(ylim[::-1])
+    else:
+        ax.set_ylim(ax.get_ylim()[::-1])
+    if not yticks:
+        ax.get_yaxis().set_ticklabels([])
+
+    return [xmin, xmax]
+
+
+def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, fill_betweens=None, **kwargs):
     """
     Plot data in one subplot
     :param ax:
@@ -72,6 +358,17 @@ def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
     :param nxt:
         int
         Number of gridlines in x direction
+    :param fill_betweens:
+        list
+        list of (data1 index, data2 index, color) triplets which determines the fill_between color when data1 is plotted
+         to the right of data2 (data1 is not necessarily larger than data2, but plots to the right of data2 given the
+         limits
+         E.G. [(0, 1, 'brown'), (1, 0, 'yellow')]
+
+         It can also specified with a None, E.G. [(0, None, 'brown'), ...], which counts a the constant value
+         zero, or with strings, E.G. [(0, '40.', 'brown'), ...], Then the fill is between the constant value
+         0 in the first case, and 40 in the second, and the curve data[0]
+
     :param kwargs:
         :param ylim:
         list of min max value of the y axis
@@ -108,6 +405,53 @@ def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, **kwargs):
     # start plotting
     for i in range(len(data)):
         axes[i].plot(data[i], y, **styles[i])
+
+    if fill_betweens is not None:
+        if not isinstance(fill_betweens, list):
+            raise IOError('fill_betweens must be a list')
+        for fill in fill_betweens:
+            # try to cover the case when filling between a curve and a constant
+            data_0 = None
+            min_limit = None
+            delta_limit = None
+            if fill[0] is None:
+                data_0 = 0.0
+                min_limit = limits[fill[1]][0]  # when this is None, use the limits of the other data
+                delta_limit = limits[fill[1]][1] - limits[fill[1]][0]
+            elif isinstance(fill[0], str):
+                data_0 = float(fill[0])
+                min_limit = limits[fill[1]][0]
+                delta_limit = limits[fill[1]][1] - limits[fill[1]][0]
+            elif isinstance(fill[0], int):
+                data_0 = data[fill[0]]
+                min_limit = limits[fill[0]][0]
+                delta_limit = limits[fill[0]][1] - limits[fill[0]][0]
+            else:
+                raise IOError('Error in fill_betweens: ', fill[0])
+            data_1 = None
+            if fill[1] is None:
+                data_1 = 0.0
+                min_limit = limits[fill[0]][0]
+                delta_limit = limits[fill[0]][1] - limits[fill[0]][0]
+            elif isinstance(fill[1], str):
+                data_1 = float(fill[1])
+                min_limit = limits[fill[0]][0]
+                delta_limit = limits[fill[0]][1] - limits[fill[0]][0]
+            elif isinstance(fill[1], int):
+                data_1 = data[fill[1]]
+                min_limit = limits[fill[1]][0]
+                delta_limit = limits[fill[1]][1] - limits[fill[1]][0]
+            else:
+                raise IOError('Error in fill_betweens: ', fill[1])
+
+            # sd is the scaled version of the data that matches data[0]
+            sd0 = limits[0][0] + (limits[0][1] - limits[0][0]) * \
+                  (data_0 - min_limit) / delta_limit
+                  # (data_0 - limits[fill[0]][0]) / (limits[fill[0]][1] - limits[fill[0]][0])
+            sd1 = limits[0][0] + (limits[0][1] - limits[0][0]) * \
+                  (data_1 - min_limit) / delta_limit
+                  # (data_1 - limits[fill[1]][0]) / (limits[fill[1]][1] - limits[fill[1]][0])
+            axes[0].fill_betweenx(y, sd0, sd1, sd0 > sd1, color=fill[2])
 
     # set up the x range differently for each plot
     for i in range(len(data)):
@@ -381,7 +725,7 @@ def annotate_plot(ax, y, pad=-30, intervals=None, interval_names=None, interval_
         tick.set_pad(pad)
 
 
-def header_plot(ax, limits, legends, styles, title=None):
+def header_plot(ax, limits, legends, styles, title=None, **text_keywords):
     """
     Tries to create a "header" to a plot, similar to what is used in RokDoc and many CPI plots
     :param ax:
@@ -400,11 +744,13 @@ def header_plot(ax, limits, legends, styles, title=None):
         E.G. [{'lw':1, 'color':'k', 'ls':'-'}, {'lw':2, 'color':'r', 'ls':'-'}, ... ]
     :return:
     """
+    ha = text_keywords.pop('ha', 'center')
+    rotation = text_keywords.pop('rotation', 0)
     if limits is None:
         ax.get_xaxis().set_ticks([])
         ax.get_yaxis().set_ticks([])
         if title is not None:
-            ax.text(0.5, 0.1, title, ha='center')
+            ax.text(0.5, 0.1, title, ha=ha, rotation=rotation)
         return
 
     if not (len(limits) == len(legends) == len(styles)):
@@ -416,8 +762,15 @@ def header_plot(ax, limits, legends, styles, title=None):
     n = 8
     for i in range(len(limits)):
         ax.plot([1, 1.333, 1.666, 2],  [n-1-2*i]*4, **styles[i])
-        ax.text(1-0.03, n-1-2*i, '{:.1f}'.format(limits[i][0]), ha='right', va='center', fontsize='smaller')
-        ax.text(2+0.03, n-1-2*i, '{:.1f}'.format(limits[i][1]), ha='left', va='center', fontsize='smaller')
+        if abs(limits[i][0]) > 100:
+            ax.text(1 - 0.03, n - 1 - 2 * i, '{:.0f}'.format(limits[i][0]), ha='right', va='center', fontsize='smaller')
+            ax.text(2 + 0.03, n - 1 - 2 * i, '{:.0f}'.format(limits[i][1]), ha='left', va='center', fontsize='smaller')
+        elif abs(limits[i][0]) > 10:
+            ax.text(1 - 0.03, n - 1 - 2 * i, '{:.1f}'.format(limits[i][0]), ha='right', va='center', fontsize='smaller')
+            ax.text(2 + 0.03, n - 1 - 2 * i, '{:.1f}'.format(limits[i][1]), ha='left', va='center', fontsize='smaller')
+        else:
+            ax.text(1-0.03, n-1-2*i, '{:.2f}'.format(limits[i][0]), ha='right', va='center', fontsize='smaller')
+            ax.text(2+0.03, n-1-2*i, '{:.2f}'.format(limits[i][1]), ha='left', va='center', fontsize='smaller')
         ax.text(1.5, n-1-2*i+0.1, legends[i], ha='center', va='bottom', fontsize='smaller')
 
     ax.set_xlim(0.8, 2.3)
@@ -544,6 +897,41 @@ def wiggle_plot(ax, y, wiggle, zero_at=0., scaling=1., fill_pos_style='pos-blue'
     if not yticks:
         ax.get_yaxis().set_ticklabels([])
         ax.tick_params(axis='y', length=0)
+
+
+def ava_curve_plot(ax, incident_angles, ava_curves, styles=None ):
+    """
+    Plots a set of amplitude versus angle plots in one axes object
+    :param ax:
+        Axes object
+    :param    incident_angles:
+        list
+        List of incident angles in degrees
+    :param ava_curves:
+        np.ndarray
+        size len(incident_angles), len(extract_at)
+        Array with AVA (amplitude versus angle) curves, one for each "extract_at" float.
+    :param styles:
+        list
+        list of dicts which describes the line styles
+        E.G. [{'lw':1, 'color':'k', 'ls':'-'}, {'lw':2, 'color':'r', 'ls':'-'}, ... ]
+    :return:
+    """
+    # Get axis "physical" size
+    fig = ax.get_figure()
+    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+    bbox_aspect_ratio = bbox.width / bbox.height
+    print(bbox_aspect_ratio)
+    if bbox_aspect_ratio < 0.5:
+        this_ax = ax.inset_axes([0.1, 0.5, 0.88, 0.3])
+    else:
+        this_ax = ax
+
+    for i in range(ava_curves.shape[1]):
+        this_ax.plot(incident_angles, ava_curves[:, i], **styles[i])
+
+    this_ax.axhline(0, 0, 1, c='k', ls='--')
+    this_ax.set_xlabel('Incident angle')
 
 
 def chi_rotation_plot(eeis, y, chi_angles, eei_limits, line_colors=None, legends=None, reference_log=None,
