@@ -42,9 +42,9 @@ class DefineParams:
         self.seed = seed
 
         # Turn on / off alterations:
-        self.use_add_noise = False
-        self.use_linear_deform = False
-        self.use_gaussian_deform = False
+        self.use_add_noise = True
+        self.use_linear_deform = True
+        self.use_gaussian_deform = True
         self.use_fault_deform = True
 
         # Synthetic 1D reflection model
@@ -142,9 +142,7 @@ class GenerateParams:
         # Deformation Parameters
         # 2D Gaussian Deformation
         prm.num_gauss = int(self.rng.uniform(prm.num_gauss_rng[0], prm.num_gauss_rng[1]))  #
-        # TODO
-        # We can make the amplitude (a) of the gaussian deformation vary
-        self.a = self.randomize_prm(prm.a_rng, pos_neg=True)
+        self.a = self.randomize_prm(prm.a_rng, pos_neg=True)  # All gaussian deformations have the same amplitude
         self.b = self.randomize_prm(prm.b_rng, prm.num_gauss, pos_neg=True)
         self.c = self.randomize_prm(prm.c_rng, prm.num_gauss)
         self.d = self.randomize_prm(prm.d_rng, prm.num_gauss)
@@ -397,8 +395,6 @@ class CreateSynthRefl(GenerateParams):
 
         def fault_throw(theta, phi, throw, z0_f, type_flt, prm):
             """ Define z shifts"""
-            # TODO
-            # The z shift becomes very small when z < 32. !
             z1 = (prm.nz_tr - prm.nz) / 2 + z0_f
             z2 = (prm.nz_tr - prm.nz) / 2 + prm.nz  # removing the last prm.nz made a huge difference
             z3 = (prm.nz_tr - prm.nz) / 2
@@ -455,11 +451,6 @@ class CreateSynthRefl(GenerateParams):
 
                 # Fault Label
                 labels = self.labels.copy()
-                # if i > 0:
-                #     labels = replace(labels, idx_repl, x1, y1, z1, prm)
-                #     # XXX 0.01 was 0.4
-                #     labels[labels > 0.01] = 1
-                #     labels[labels <= 0.01] = 0
                 flt_flag = (0.5 * np.tan(self.dip[i] / 180 * np.pi) > abs(z - z_flt_plane)) & flag_offset
                 labels[flt_flag] = 1
                 self.labels = labels
@@ -606,7 +597,6 @@ class CreateSyntheticTrace(CreateSynthRefl):
             tmp = np.reshape(self.traces, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             ax_seismic_x.imshow(np.transpose(tmp[:, half_way, :]), cmap='seismic')
             ax_seismic_x.set_xlabel('X direction at Y={}'.format(half_way))
-            # XXX
             # yticks = ax_seismic_x.get_yticks() * prm.dt * 1000
             # ax_seismic_x.set_yticklabels(yticks.astype(int))
             info_txt = 'Simulated seismic'
@@ -617,7 +607,6 @@ class CreateSyntheticTrace(CreateSynthRefl):
             if tmp is None:
                 tmp = np.reshape(self.traces, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             ax_seismic_y.imshow(np.transpose(tmp[half_way, :, :]), cmap='seismic')
-            # XXX
             # yticks = ax_seismic_y.get_yticks() * prm.dt * 1000
             # ax_seismic_y.set_yticklabels(yticks.astype(int))
             ax_seismic_y.set_xlabel('Y direction at X={}'.format(half_way))
@@ -817,6 +806,6 @@ def test(path, seed=None, patch_size=128):
 
 if __name__ == '__main__':
     arrange_logging(True, "C:\\tmp\\test.log")
-    seed = 5
+    seed = None
     test("C:\\tmp", seed)
     plt.show()

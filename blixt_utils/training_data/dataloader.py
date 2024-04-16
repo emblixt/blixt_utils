@@ -23,6 +23,9 @@ class DataLoader(Dataset):
         if validation_length is None:
             validation_length = 20
 
+        if not os.path.exists(root_dir):
+            raise OSError('The folder {} is not found'.format(root_dir))
+
         this_date = datetime.datetime.now().strftime('%Y-%m-%dT%H.%M')
         arrange_logging(False, os.path.join(root_dir, '{} training.log'.format(this_date)))
         logging.info('Generating data on {}'.format(this_date))
