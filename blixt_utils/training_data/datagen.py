@@ -9,11 +9,13 @@ import logging
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.colors import colorConverter
+from matplotlib.patches import Rectangle
 
 from blixt_utils.utils import arrange_logging
 
 logger = logging.getLogger(__name__)
 text_style = {'fontsize': 'x-small', 'bbox': {'facecolor': 'w', 'alpha': 0.5}}
+box_style = {'fill': False, 'lw': 0.5, 'ls': '--'}
 
 """
 Code for generating synthetic data taken from 
@@ -22,6 +24,9 @@ https://github.com/Jun-Tam/3D-Seismic-Image-Fault-Segmentation
 Heavily modified
  2021-03-26: Uses the more modern random generator: default_rng 
  2021-03-26: Number of horizons should vary according to num_horizons_rng
+ ...
+ ...
+ 2024-04-17: Added relative geological time calculation
 """
 
 
@@ -47,12 +52,15 @@ class DefineParams:
         self.use_gaussian_deform = True
         self.use_fault_deform = True
 
+        # Calculate relative geological time labels
+        self.calc_rgt = True
+
         # Synthetic 1D reflection model
         # The size of the model (size_tr) should be larger than the patch_size to cover up for
         # tilting layers and large fault offsets.
         # The cropping later is used to keep only the core part defined by patch_size
-        buffer = 36
-        size_tr = int(patch_size + 2 * buffer)
+        self.buffer = 36
+        size_tr = int(patch_size + 2 * self.buffer)
         self.num_horizons_rng = (5, 60)  # number of horizons in 1D model
         nx, ny, nz = ([patch_size] * 3)
         nxy = nx * ny
@@ -222,19 +230,31 @@ class CreateSynthRefl(GenerateParams):
                  ax_one_d=None,
                  ax_deform_x=None, ax_deform_y=None, ax_deform_z=None,
                  ax_fault_x=None, ax_fault_y=None, ax_fault_z=None,
-                 ax_fault_3d=None):
+                 ax_fault_3d=None,
+                 ax_rgt_1d=None,
+                 ax_deform_rgt_x=None, ax_deform_rgt_y=None, ax_deform_rgt_z=None,
+                 ax_fault_rgt_x=None, ax_fault_rgt_y=None, ax_fault_rgt_z=None
+                 ):
         super().__init__(prm)
 
         self.one_d_model = np.zeros([prm.nz_tr])
         self.labels = np.zeros(prm.nxyz_tr)
         refl = self.create_1d_model(prm)
+        self.rgt_1d = None
+        self.rgt = None
+        if prm.calc_rgt:
+            self.rgt_1d = create_1d_rgt(prm)
+            self.rgt = np.tile(self.rgt_1d, [prm.nxy_tr, 1])
+            qc_plot_1d_rgt(prm, ax_rgt_1d)
 
         self.one_d_model = refl
         self.refl = np.tile(refl, [prm.nxy_tr, 1])
         self.qc_plot_1d_model(prm, ax_one_d)
 
         self.refl = self.deformation(prm)
-        self.qc_plot_deform(prm, ax_deform_x, ax_deform_y, ax_deform_z)
+        self.qc_plot_deform(prm, self.refl, ax_deform_x, ax_deform_y, ax_deform_z)
+        if prm.calc_rgt:
+            self.qc_plot_deform(prm, self.rgt, ax_deform_rgt_x, ax_deform_rgt_y, ax_deform_rgt_z)
 
         if prm.use_fault_deform:
             flag_zero_counts = False
@@ -244,7 +264,10 @@ class CreateSynthRefl(GenerateParams):
             self.x0_f, self.y0_f, self.z0_f, self.throw, self.dip, self.strike, self.type_flt = self.param_fault(prm)
             self.throw_shift(prm, ax_fault_3d=ax_fault_3d)
             flag_zero_counts = self.zero_counts(prm)
-        self.qc_plot_fault(prm, ax_fault_x, ax_fault_y, ax_fault_z)
+        self.qc_plot_fault(prm, self.refl, ax_fault_x, ax_fault_y, ax_fault_z, plot_data=False, plot_faults=True)
+        if prm.calc_rgt:
+            self.qc_plot_fault(prm, self.rgt, ax_fault_rgt_x, ax_fault_rgt_y, ax_fault_rgt_z,
+                               plot_data=True, plot_faults=False)
 
     def zero_counts(self, prm):
         xyz = np.reshape(self.refl, [prm.nx_tr, prm.ny_tr, prm.nz_tr])
@@ -323,20 +346,40 @@ class CreateSynthRefl(GenerateParams):
             s2_cp = cp.zeros_like(xy_cp[:, 0])
 
         refl_cp = cp.asarray(self.refl)
+        rgt_cp = None
+        if prm.calc_rgt:
+            rgt_cp = cp.asarray(self.rgt)
+
         if prm.use_gaussian_deform or prm.use_linear_deform:
             for i in range(prm.nxy_tr):
                 s = s1_cp[i, :] + s2_cp[i] + z_cp
                 mat = cp.tile(z_cp, (len(s), 1)) - cp.tile(cp.expand_dims(s, 1), (1, len(z_cp)))
                 refl_cp[i, :] = cp.dot(refl_cp[i, :], cp.sinc(mat))
+                if prm.calc_rgt:
+                    rgt_cp[i, :] = cp.dot(rgt_cp[i, :], cp.sinc(mat))
+
+        if prm.calc_rgt:
+            self.rgt = np.reshape(cp.asnumpy(rgt_cp), [prm.nxy_tr, prm.nz_tr])
 
         return np.reshape(cp.asnumpy(refl_cp), [prm.nxy_tr, prm.nz_tr])
 
-    def qc_plot_deform(self, prm, ax_deform_x, ax_deform_y, ax_deform_z):
+    def qc_plot_deform(self, prm, data, ax_deform_x, ax_deform_y, ax_deform_z):
+        """
+
+        :param prm:
+        :param data:
+            self.refl or self.rgt
+        :param ax_deform_x:
+        :param ax_deform_y:
+        :param ax_deform_z:
+        :return:
+        """
         tmp = None
         info_txt = None
         if ax_deform_x is not None:
             half_way = int(0.5 * prm.ny_tr)
-            tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
+            # tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
+            tmp = np.reshape(data, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             ax_deform_x.imshow(np.transpose(tmp[:, half_way, :]))
             ax_deform_x.set_xlabel('X direction at Y={}'.format(half_way))
             # yticks = ax_deform_x.get_yticks() * prm.dt * 1000
@@ -353,26 +396,34 @@ class CreateSynthRefl(GenerateParams):
             else:
                 info_txt += '\nNo planar deform'
             # ax_deform_x.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            ax_deform_x.add_patch(
+                Rectangle((prm.buffer, prm.buffer), prm.nx, prm.ny, **box_style))
 
         if ax_deform_y is not None:
             half_way = int(0.5 * prm.nx_tr)
             if tmp is None:
-                tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
+                # tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
+                tmp = np.reshape(data, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             ax_deform_y.imshow(np.transpose(tmp[half_way, :, :]))
             # yticks = ax_deform_y.get_yticks() * prm.dt * 1000
             # ax_deform_y.set_yticklabels(yticks.astype(int))
             ax_deform_y.set_xlabel('Y direction at X={}'.format(half_way))
             # if info_txt is not None:
             #    ax_deform_y.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            ax_deform_y.add_patch(
+                Rectangle((prm.buffer, prm.buffer), prm.nx, prm.ny, **box_style))
 
         if ax_deform_z is not None:
             half_way = int(0.5 * prm.nz_tr)
             if tmp is None:
-                tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
+                # tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
+                tmp = np.reshape(data, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             ax_deform_z.imshow(tmp[:, :, half_way])
             ax_deform_z.set_xlabel('X direction at TWT={:.0f}ms'.format(half_way * prm.dt * 1000.))
             if info_txt is not None:
                 ax_deform_z.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            ax_deform_z.add_patch(
+                Rectangle((prm.buffer, prm.buffer), prm.nx, prm.ny, **box_style))
 
     def throw_shift(self, prm, ax_fault_3d=None):
         """ Add fault throw with linear and gaussian offset """
@@ -448,6 +499,10 @@ class CreateSynthRefl(GenerateParams):
                 refl = self.refl.copy()
                 refl = replace(refl, idx_repl, x1, y1, z1, prm)
                 self.refl = np.reshape(refl, [prm.nxy_tr, prm.nz_tr])
+                if prm.calc_rgt:
+                    rgt = self.rgt.copy()
+                    rgt = replace(rgt, idx_repl, x1, y1, z1, prm)
+                    self.rgt = np.reshape(rgt, [prm.nxy_tr, prm.nz_tr])
 
                 # Fault Label
                 labels = self.labels.copy()
@@ -456,7 +511,7 @@ class CreateSynthRefl(GenerateParams):
                 self.labels = labels
             flag_zero_counts = self.zero_counts(prm)
 
-    def qc_plot_fault(self, prm, ax_fault_x, ax_fault_y, ax_fault_z):
+    def qc_plot_fault(self, prm, data, ax_fault_x, ax_fault_y, ax_fault_z, plot_data=True, plot_faults=True):
         tmp = None
         lbls = None
         info_txt = None
@@ -472,10 +527,12 @@ class CreateSynthRefl(GenerateParams):
 
         if ax_fault_x is not None:
             half_way = int(0.5 * prm.ny_tr)
-            tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
+            tmp = np.reshape(data, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             lbls = np.reshape(self.labels, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
-            # ax_fault_x.imshow(np.transpose(tmp[:, half_way, :]), origin='lower')
-            ax_fault_x.imshow(np.transpose(lbls[:, half_way, :]), cmap=cmap2, origin='lower')
+            if plot_data:
+                ax_fault_x.imshow(np.transpose(tmp[:, half_way, :]), origin='lower')
+            if plot_faults:
+                ax_fault_x.imshow(np.transpose(lbls[:, half_way, :]), cmap=cmap2, origin='lower')
             ax_fault_x.set_xlabel('X direction at Y={}'.format(half_way))
             ax_fault_x.set_ylim(ax_fault_x.get_ylim()[::-1])
             if prm.use_fault_deform:
@@ -487,31 +544,41 @@ class CreateSynthRefl(GenerateParams):
             else:
                 info_txt = 'No Faults'
             # ax_fault_x.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            ax_fault_x.add_patch(
+                Rectangle((prm.buffer, prm.buffer), prm.nx, prm.ny, **box_style))
 
         if ax_fault_y is not None:
             half_way = int(0.5 * prm.nx_tr)
             if tmp is None:
-                tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
+                tmp = np.reshape(data, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             if lbls is None:
                 lbls = np.reshape(self.labels, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
-            # ax_fault_y.imshow(np.transpose(tmp[half_way, :, :]), origin='lower')
-            ax_fault_y.imshow(np.transpose(lbls[half_way, :, :]), cmap=cmap2, origin='lower')
+            if plot_data:
+                ax_fault_y.imshow(np.transpose(tmp[half_way, :, :]), origin='lower')
+            if plot_faults:
+                ax_fault_y.imshow(np.transpose(lbls[half_way, :, :]), cmap=cmap2, origin='lower')
             ax_fault_y.set_xlabel('Y direction at X={}'.format(half_way))
             ax_fault_y.set_ylim(ax_fault_y.get_ylim()[::-1])
             # if info_txt is not None:
             #    ax_fault_y.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            ax_fault_y.add_patch(
+                Rectangle((prm.buffer, prm.buffer), prm.nx, prm.ny, **box_style))
 
         if ax_fault_z is not None:
             half_way = int(0.5 * prm.nz_tr)
             if tmp is None:
-                tmp = np.reshape(self.refl, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
+                tmp = np.reshape(data, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
             if lbls is None:
                 lbls = np.reshape(self.labels, (prm.nx_tr, prm.ny_tr, prm.nz_tr))
-            # ax_fault_z.imshow(tmp[:, :, half_way])
-            ax_fault_z.imshow(lbls[:, :, half_way], cmap=cmap2)
+            if plot_data:
+                ax_fault_z.imshow(tmp[:, :, half_way])
+            if plot_faults:
+                ax_fault_z.imshow(lbls[:, :, half_way], cmap=cmap2)
             ax_fault_z.set_xlabel('X direction at TWT={:.0f}ms'.format(half_way * prm.dt * 1000.))
             if info_txt is not None:
                 ax_fault_z.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            ax_fault_z.add_patch(
+                Rectangle((prm.buffer, prm.buffer), prm.nx, prm.ny, **box_style))
 
 
 class CreateSyntheticTrace(CreateSynthRefl):
@@ -521,12 +588,24 @@ class CreateSyntheticTrace(CreateSynthRefl):
                  ax_fault_x=None, ax_fault_y=None, ax_fault_z=None,
                  ax_one_d_conv=None, ax_one_d_noise=None,
                  ax_seismic_x=None, ax_seismic_y=None, ax_seismic_z=None,
-                 ax_fault_3d=None):
+                 ax_fault_3d=None,
+                 ax_rgt_1d=None,
+                 ax_deform_rgt_x=None, ax_deform_rgt_y=None, ax_deform_rgt_z=None,
+                 ax_fault_rgt_x = None, ax_fault_rgt_y = None, ax_fault_rgt_z = None
+
+    ):
+
         super().__init__(prm,
                          ax_one_d=ax_one_d,
                          ax_deform_x=ax_deform_x, ax_deform_y=ax_deform_y, ax_deform_z=ax_deform_z,
                          ax_fault_x=ax_fault_x, ax_fault_y=ax_fault_y, ax_fault_z=ax_fault_z,
-                         ax_fault_3d=ax_fault_3d)
+                         ax_fault_3d=ax_fault_3d,
+                         ax_rgt_1d=ax_rgt_1d,
+                         ax_deform_rgt_x=ax_deform_rgt_x, ax_deform_rgt_y=ax_deform_rgt_y,
+                         ax_deform_rgt_z=ax_deform_rgt_z,
+                         ax_fault_rgt_x=ax_fault_rgt_x, ax_fault_rgt_y=ax_fault_rgt_y,
+                         ax_fault_rgt_z=ax_fault_rgt_z
+                         )
         self.wavelet = None
         self.traces = np.zeros([prm.nxy_tr, prm.nz_tr])
         self.convolve_wavelet(prm)
@@ -538,6 +617,7 @@ class CreateSyntheticTrace(CreateSynthRefl):
         self.crop_center_patch(prm)
         self.traces = np.reshape(self.traces, [prm.nx, prm.ny, prm.nz])
         self.labels = np.reshape(self.labels, [prm.nx, prm.ny, prm.nz])
+        self.rgt = np.reshape(self.rgt, [prm.nx, prm.ny, prm.nz])
 
     def convolve_wavelet(self, prm):
         ''' Convolve reflectivity model with a Ricker wavelet '''
@@ -601,6 +681,8 @@ class CreateSyntheticTrace(CreateSynthRefl):
             # ax_seismic_x.set_yticklabels(yticks.astype(int))
             info_txt = 'Simulated seismic'
             # ax_seismic_x.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            ax_seismic_x.add_patch(
+                Rectangle((prm.buffer, prm.buffer), prm.nx, prm.ny, **box_style))
 
         if ax_seismic_y is not None:
             half_way = int(0.5 * prm.nx_tr)
@@ -612,6 +694,8 @@ class CreateSyntheticTrace(CreateSynthRefl):
             ax_seismic_y.set_xlabel('Y direction at X={}'.format(half_way))
             # if info_txt is not None:
             #    ax_seismic_y.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            ax_seismic_y.add_patch(
+                Rectangle((prm.buffer, prm.buffer), prm.nx, prm.ny, **box_style))
 
         if ax_seismic_z is not None:
             half_way = int(0.5 * prm.nz_tr)
@@ -621,6 +705,8 @@ class CreateSyntheticTrace(CreateSynthRefl):
             ax_seismic_z.set_xlabel('X direction at TWT={:.0f}ms'.format(half_way * prm.dt * 1000.))
             if info_txt is not None:
                 ax_seismic_z.text(10, 10, info_txt, ha='left', va='top', **text_style)
+            ax_seismic_z.add_patch(
+                Rectangle((prm.buffer, prm.buffer), prm.nx, prm.ny, **box_style))
 
     def crop_center_patch(self, prm):
         ''' Extract the central part in the input size '''
@@ -635,6 +721,9 @@ class CreateSyntheticTrace(CreateSynthRefl):
         self.traces = func_crop(self.traces)
         self.labels = np.reshape(self.labels, [prm.nxy_tr, prm.nz_tr])
         self.labels = func_crop(self.labels)
+        if prm.calc_rgt:
+            self.rgt = np.reshape(self.rgt, [prm.nxy_tr, prm.nz_tr])
+            self.rgt = func_crop(self.rgt)
 
     def standardizer(self):
         ''' Standardize amplitudes within the image '''
@@ -653,6 +742,33 @@ def this_butter_filter(prm):
     high = prm.hcut / nyq
     b, a = butter(order, [low, high], btype='band')
     return b, a
+
+
+def create_1d_rgt(prm):
+    """
+    Calculate the relative geological time, which should vary from 1 to 150 in the z direction within the
+    patch size
+
+    :param prm:
+    :return:
+    """
+    _z = np.arange(prm.nz_tr)
+    _a = 149 / (prm.nz_tr - 2 * prm.buffer)
+    _y0 = 0.5 * (151 - _a * prm.nz_tr)
+    return _y0 + _a * _z
+
+
+def qc_plot_1d_rgt(prm, ax):
+    info_txt = None
+    if ax is not None:
+        rgt = create_1d_rgt(prm)
+        ax.plot(rgt, np.arange(prm.nz_tr))
+        ax.set_ylim(ax.get_ylim()[::-1])
+        ax.set_xlabel('Relative geological time')
+        ax.axhline(prm.buffer, ls='--', lw=0.5)
+        ax.axhline(prm.buffer + prm.nz, ls='--', lw=0.5)
+        ax.axvline(1.0, ls='--', lw=0.5)
+        ax.axvline(150, ls='--', lw=0.5)
 
 
 def datagen(root_dir, _seed, mode, patch_size=128):
@@ -770,6 +886,9 @@ def test(path, seed=None, patch_size=128):
     this_date = datetime.datetime.now().strftime('%Y-%m-%dT%H.%M.%S.%f')
     fig.suptitle('Run {}'.format(this_date))
 
+    fig_rgt, axes_rgt = plt.subplots(4, 3, figsize=(12, 18))
+    fig_rgt.suptitle('Run {}'.format(this_date))
+
     prm = DefineParams(patch_size, path, seed)
 
     synt_traces = CreateSyntheticTrace(prm,
@@ -777,7 +896,12 @@ def test(path, seed=None, patch_size=128):
                                        ax_deform_x=axes[1][1], ax_deform_y=axes[1][2], ax_deform_z=axes[1][0],
                                        ax_fault_x=axes[2][1], ax_fault_y=axes[2][2], ax_fault_z=axes[2][0],
                                        ax_seismic_x=axes[3][1], ax_seismic_y=axes[3][2], ax_seismic_z=axes[3][0],
-                                       ax_fault_3d=ax3d
+                                       ax_fault_3d=ax3d,
+                                       ax_rgt_1d=axes_rgt[0][0],
+                                       ax_deform_rgt_x=axes_rgt[1][1], ax_deform_rgt_y=axes_rgt[1][2],
+                                       ax_deform_rgt_z=axes_rgt[1][0],
+                                       ax_fault_rgt_x=axes_rgt[2][1], ax_fault_rgt_y=axes_rgt[2][2],
+                                       ax_fault_rgt_z=axes_rgt[2][0],
                                        )
 
     # Save qc plot
@@ -805,7 +929,14 @@ def test(path, seed=None, patch_size=128):
 
 
 if __name__ == '__main__':
-    arrange_logging(True, "C:\\tmp\\test.log")
+    base_folder = "C:\\tmp"
+    arrange_logging(True, os.path.join(base_folder, "test.log"))
     seed = None
-    test("C:\\tmp", seed)
+    synt_traces = test(base_folder, seed)
+    # np.save(os.path.join(base_folder, 'seismic.dat'), synt_traces.traces)
+    # np.save(os.path.join(base_folder, 'labels.dat'), synt_traces.labels)
+    # np.save(os.path.join(base_folder, 'rgt.dat'), synt_traces.rgt)
+    synt_traces.traces.astype(np.float32).tofile(os.path.join(base_folder, 'seismic.dat'))
+    synt_traces.labels.astype(np.float32).tofile(os.path.join(base_folder, 'labels.dat'))
+    synt_traces.rgt.astype(np.float32).tofile(os.path.join(base_folder, 'rgt.dat'))
     plt.show()

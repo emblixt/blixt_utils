@@ -75,7 +75,7 @@ def test():
        _ = val_data[i]
 
     for i in range(2):
-        _ = val_data[i]
+        _ = train_data[i]
 
 
 if __name__ == '__main__':
