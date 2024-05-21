@@ -357,6 +357,20 @@ class CreateSynthRefl(GenerateParams):
                 refl_cp[i, :] = cp.dot(refl_cp[i, :], cp.sinc(mat))
                 if prm.calc_rgt:
                     rgt_cp[i, :] = cp.dot(rgt_cp[i, :], cp.sinc(mat))
+                """
+                Marcin 5:09 PM
+                I fixed artifacts on rgt. The strange pattern and something what we thought that was empty area after fault shift come from the same place at code. We calulate rgt using sinc method
+                rgt_cp[i, :] = cp.dot(rgt_cp[i, :], cp.sinc(mat))
+                This way of calculating is fine for seismic but for rgt it gives artifacts (I think this is aliasing which appears in the form of a moiré pattern ) and empty areas.
+                I replace above line with
+                    rgt_cp[i, :] = cp.dot(rgt_cp[i, :], cp.nan_to_num(mat))
+                then I normalize rgt to previous range:
+                    r_min = cp.min(rgt_cp)
+                    r_max = cp.max(rgt_cp)
+                    t_min = cp.array(np.min(self.rgt_1d))
+                    t_max = cp.array(np.max(self.rgt_1d))
+                    rgt_cp = ((rgt_cp - r_min) / (r_max - r_min))*(t_max - t_min) + t_min
+                """
 
         if prm.calc_rgt:
             self.rgt = np.reshape(cp.asnumpy(rgt_cp), [prm.nxy_tr, prm.nz_tr])
@@ -510,6 +524,14 @@ class CreateSynthRefl(GenerateParams):
                 labels[flt_flag] = 1
                 self.labels = labels
             flag_zero_counts = self.zero_counts(prm)
+            """
+            Marcin  2:11 PM
+            The problem was different then I expected. In some way it was connected to gaussian fuault.
+            Somewhere around line 510 it was missing:
+                labels = replace(labels, idx_repl, x1, y1, z1, prm)
+            In other words, rgt and seismic was shifted according to fault. But  for the labels we only add new one. 
+            After many fault shift operation seismic was shifted but labels wasn't at all.
+            """
 
     def qc_plot_fault(self, prm, data, ax_fault_x, ax_fault_y, ax_fault_z, plot_data=True, plot_faults=True):
         tmp = None
