@@ -8,6 +8,7 @@ AttribDict class for ObsPy.
     (https://www.gnu.org/copyleft/lesser.html)
 """
 import collections
+from collections import Mapping
 import copy
 import warnings
 
@@ -86,7 +87,7 @@ class AttribDict(collections.MutableMapping):
                     key, '", "'.join(self.defaults.keys()))
                 warnings.warn(msg)
 
-        if isinstance(value, collections.Mapping) and \
+        if isinstance(value, Mapping) and \
            not isinstance(value, AttribDict):
             self.__dict__[key] = AttribDict(value)
         else:
