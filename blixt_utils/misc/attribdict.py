@@ -8,12 +8,20 @@ AttribDict class for ObsPy.
     (https://www.gnu.org/copyleft/lesser.html)
 """
 import collections
-from collections import Mapping
+try:
+    from collections import Mapping
+except ImportError:
+    from collections.abc import Mapping
+try:
+    from collections import MutableMapping
+except ImportError:
+    from collections.abc import MutableMapping
+
 import copy
 import warnings
 
 
-class AttribDict(collections.MutableMapping):
+class AttribDict(MutableMapping):
     """
     A class which behaves like a dictionary.
     :type data: dict, optional

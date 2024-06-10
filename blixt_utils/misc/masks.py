@@ -7,6 +7,7 @@ Set of tools for handling masks (originally for infrasound data)
 import numpy as np
 import logging
 
+
 def create_mask(data, operator, limits):
     """
     Given input data, mask operator with limits, this routine returns the boolean mask
@@ -71,7 +72,7 @@ def create_mask(data, operator, limits):
     return mask
 
 
-def combine_masks(masks, combine_operator='AND'):
+def combine_masks(masks, combine_operator='AND', verbose=False):
     """
     Combine masks of equal length, using and or or
     :param masks:
@@ -84,7 +85,6 @@ def combine_masks(masks, combine_operator='AND'):
         boolean mask with input masks combined
     """
 
-
     # convert input to list if they're not
     if not isinstance(masks, list):
         masks = [masks]
@@ -96,7 +96,11 @@ def combine_masks(masks, combine_operator='AND'):
             raise OSError('Mask {} is not a numpy ndarray'.format(i))
         if i == 0:
             length = len(mask)
+            if verbose:
+                print('- combine_masks: {} len({})'.format(i, length))
         else:
+            if verbose:
+                print('- combine_masks: {} len({})'.format(i, len(mask)))
             if len(mask) != length:
                 raise OSError('Mask {} has different length'.format(i))
         if mask.dtype != np.dtype('bool'):

@@ -88,7 +88,7 @@ def svnversion():
 def nan_corrcoef(x,y):
     maskx = ~np.ma.masked_invalid(x).mask
     masky = ~np.ma.masked_invalid(y).mask
-    mask = msks.combine_masks([maskx, masky])
+    mask = msks.combine_masks([maskx, masky], verbose=False)
     return np.corrcoef(x[mask], y[mask])
 
 
