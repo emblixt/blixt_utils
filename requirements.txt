@@ -1,4 +1,4 @@
-setuptools~=47.1.0
+setuptools~=53.
 pandas~=1.1.0
 xarray~=0.16.0
 numpy~=1.18.5
