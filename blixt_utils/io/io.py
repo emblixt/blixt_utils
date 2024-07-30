@@ -333,6 +333,26 @@ def read_general_ascii(filename, data_type, **kwargs):
     def contain_strings(l:list):
         return not all([not isinstance(_x, str) for _x in l])
 
+    def return_valid_line(line_string, sep, _min_cols):
+        # Skip empty lines!
+        if len(line_string.strip().replace('\t', '')) == 0:
+            return False
+
+        _data = _split(line_string, sep)
+
+        # skip lines shorter than minimum columns
+        if len(_data) < _min_cols:
+            return False
+
+        # Try to convert all elements of data list to floats
+        _data = [my_float(_x) for _x in _data]
+
+        # skip lines that contain strings
+        if contain_strings(_data):
+            return False
+
+        return _data
+
     data_line = int(kwargs.pop('data begins on line'))
     separator = kwargs.pop('separator', 'space')
     separator = separator.replace('"', '')
@@ -353,15 +373,8 @@ def read_general_ascii(filename, data_type, **kwargs):
             i = 0
             for line in f.readlines():
                 if i >= data_line - 1:
-                    # Skip empty lines!
-                    if len(line.strip().replace('\t', '')) == 0:
-                        continue
-                    this_line_of_data = _split(line, separator)
-                    # skip lines shorter than minimum columns
-                    if len(this_line_of_data) < min_cols:
-                        continue
-                    # skip lines that contain strings
-                    if contain_strings(this_line_of_data):
+                    this_line_of_data = return_valid_line(line, separator, min_cols)
+                    if not this_line_of_data:
                         continue
                     data['MD'].append(this_line_of_data[md_column - 1])
                     data['TVD'].append(this_line_of_data[tvd_column - 1])
@@ -392,17 +405,9 @@ def read_general_ascii(filename, data_type, **kwargs):
             i = 0
             for line in f.readlines():
                 if i >= data_line - 1:
-                    # Skip empty lines!
-                    if len(line.strip().replace('\t', '')) == 0:
+                    this_line_of_data = return_valid_line(line, separator, min_cols)
+                    if not this_line_of_data:
                         continue
-                    this_line_of_data = _split(line, separator)
-                    # skip lines shorter than minimum columns
-                    if len(this_line_of_data) < min_cols:
-                        continue
-                    # skip lines that contain strings
-                    if contain_strings(this_line_of_data):
-                        continue
-                    # print(this_line_of_data)
                     data['MD'].append(this_line_of_data[md_column - 1])
                     data['TWT'].append(this_line_of_data[time_column - 1] * sign_multiplier)
                 i += 1
@@ -2283,7 +2288,10 @@ def my_float(string):
     try:
         return float(string)
     except ValueError:
-        return string
+        try:
+            return float(string.replace(',', '.'))
+        except ValueError:
+            return string
 
 
 def _split(_string, _separator):
