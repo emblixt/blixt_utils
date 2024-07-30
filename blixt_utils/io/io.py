@@ -180,7 +180,7 @@ def read_petrel_wavelet(filename,
         return header, time, wavelet
 
 
-def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name):
+def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name, verbose=False):
     """
     Tries to read well path (deviation) OR checkshot data from an ASCII file in different formats and returns a
     dictionary with the
@@ -240,7 +240,7 @@ def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name):
     elif file_format.lower() == 'petrel checkshot':
         data = read_petrel_checkshots(filename)[well_name]
     elif file_format.lower() == 'general ascii':
-        data = read_general_ascii(filename, sheet_name, **kwargs)
+        data = read_general_ascii(filename, sheet_name, verbose=verbose, **kwargs)
     else:
         raise IOError('Missing valid file format specifier')
 
@@ -330,13 +330,24 @@ def read_general_ascii(filename, data_type, **kwargs):
         dict
         Dictionary containing the data in the ascii file with each column of data sorted under a given key
     """
+    def contain_strings(l:list):
+        return not all([not isinstance(_x, str) for _x in l])
+
     data_line = int(kwargs.pop('data begins on line'))
     separator = kwargs.pop('separator', 'space')
     separator = separator.replace('"', '')
     md_column = int(kwargs.pop('md column'))
+    verbose = kwargs.pop('verbose', False)
+    minimum_number_columns = [md_column]
     if data_type == "Well paths":
         tvd_column = int(kwargs.pop('tvd column'))
+        if verbose:
+            print('File: {}'.format(os.path.basename(filename)))
+            print(' TVD column: {}'.format(tvd_column))
         inclination_column = int(kwargs.pop('inclination column'))
+        minimum_number_columns.append(tvd_column)
+        minimum_number_columns.append(inclination_column)
+        min_cols = max(minimum_number_columns)
         data = {x: [] for x in ['TVD', 'MD', 'INC']}
         with open(filename, 'r') as f:
             i = 0
@@ -346,6 +357,12 @@ def read_general_ascii(filename, data_type, **kwargs):
                     if len(line.strip().replace('\t', '')) == 0:
                         continue
                     this_line_of_data = _split(line, separator)
+                    # skip lines shorter than minimum columns
+                    if len(this_line_of_data) < min_cols:
+                        continue
+                    # skip lines that contain strings
+                    if contain_strings(this_line_of_data):
+                        continue
                     data['MD'].append(this_line_of_data[md_column - 1])
                     data['TVD'].append(this_line_of_data[tvd_column - 1])
                     data['INC'].append(this_line_of_data[inclination_column - 1])
@@ -356,6 +373,11 @@ def read_general_ascii(filename, data_type, **kwargs):
         time_column = None
         owt_column = kwargs.pop('owt column')
         twt_column = kwargs.pop('twt column')
+        if owt_column is not None:
+            minimum_number_columns.append(owt_column)
+        if twt_column is not None:
+            minimum_number_columns.append(twt_column)
+        min_cols = max(minimum_number_columns)
         if twt_column is None:
             if owt_column is None:
                 raise IOError('Column number for both one-, and two-, way time are lacking')
@@ -374,6 +396,13 @@ def read_general_ascii(filename, data_type, **kwargs):
                     if len(line.strip().replace('\t', '')) == 0:
                         continue
                     this_line_of_data = _split(line, separator)
+                    # skip lines shorter than minimum columns
+                    if len(this_line_of_data) < min_cols:
+                        continue
+                    # skip lines that contain strings
+                    if contain_strings(this_line_of_data):
+                        continue
+                    # print(this_line_of_data)
                     data['MD'].append(this_line_of_data[md_column - 1])
                     data['TWT'].append(this_line_of_data[time_column - 1] * sign_multiplier)
                 i += 1
