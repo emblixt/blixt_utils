@@ -2313,6 +2313,28 @@ def _split(_string, _separator):
     return clean_list
 
 
+def example_parsing_webpage():
+    """
+    npd beautifulsoup parsing
+    :return:
+    """
+    from bs4 import BeautifulSoup
+    import requests
+
+    #r = requests.get("https://factpages.sodir.no/en/wellbore/PageView/Exploration/All/9621")
+    r = requests.get("https://factpages.sodir.no/en/wellbore/PageView/Exploration/All/9401")
+    # soup = BeautifulSoup(r.content, 'html.parser')
+    soup = BeautifulSoup(r.content, 'html5lib')
+    table = soup.find('table', attrs={'class': 'a1448 general-info-table uk-table-striped'})
+    for row in table.findAll('td', attrs={'class': 'a1256c r6'}):
+    # for row in table.findAll('td', attrs={'class': 'a1269c r6'}):
+    # for row in table.findAll('td', attrs={'class': 'a850c r6'}):
+        print(row.text)
+
+    for row in table.findAll('td', attrs={'class': 'a1269c r6'}):
+        print(row.text)
+
+
 def test1():
     las_file = os.path.dirname(__file__).replace('blixt_utils\\blixt_utils\\io', 'blixt_rp\\test_data\\Well A.las')
     project_table = os.path.dirname(__file__).replace('blixt_utils\\blixt_utils\\io', 'blixt_rp\\excels\\project_table.xlsx')
@@ -2338,4 +2360,5 @@ def test_read_checkshot_or_wellpath():
 
 
 if __name__ == '__main__':
-    test_read_checkshot_or_wellpath()
+    # test_read_checkshot_or_wellpath()
+    example_parsing_webpage()

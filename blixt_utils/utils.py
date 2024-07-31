@@ -192,3 +192,16 @@ def mask_string(cutoffs, wi_name):
         msk_str += ' Working interval: {}'.format(wi_name)
     return msk_str
 
+
+def print_info(
+        text:str,
+        type:str,
+        logger:logging.Logger
+):
+    print('{}: {}'.format(type.upper(), text))
+    if type.lower() == 'info':
+        logger.info(text)
+    elif type.lower() == 'warning':
+        logger.warning(text)
+    else:
+        raise IOError('Type must be either INFO or WARNING, not {}'.format(type.upper()))
