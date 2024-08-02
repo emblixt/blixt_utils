@@ -194,14 +194,24 @@ def mask_string(cutoffs, wi_name):
 
 
 def print_info(
-        text:str,
-        type:str,
-        logger:logging.Logger
+        text: str,
+        level: str,
+        logger: logging.Logger,
+        verbose=True,
+        to_logger=True
 ):
-    print('{}: {}'.format(type.upper(), text))
-    if type.lower() == 'info':
-        logger.info(text)
-    elif type.lower() == 'warning':
-        logger.warning(text)
-    else:
-        raise IOError('Type must be either INFO or WARNING, not {}'.format(type.upper()))
+    if verbose:
+        print('{}: {}'.format(level.upper(), text))
+    if to_logger:
+        if level.lower() == 'info':
+            logger.info(text)
+        elif level.lower() == 'warning':
+            logger.warning(text)
+        elif level.lower() == 'debug':
+            logger.debug(text)
+        elif level.lower() == 'error':
+            logger.error(text)
+        elif level.lower() == 'exception':
+            logger.exception(text)
+        else:
+            raise IOError('Logger level: {}, not recognized'.format(level.upper()))

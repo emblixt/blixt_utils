@@ -1,6 +1,8 @@
 import numpy as np
 import logging
 
+from blixt_utils.utils import print_info
+
 logger = logging.getLogger(__name__)
 
 bar_to_gpa = 0.0001
@@ -45,7 +47,7 @@ def convert(in_data, from_unit=None, to_unit=None):
         wrn_txt = "'from_unit': {}, equals 'to_unit': {}. No conversion done".format(from_unit, to_unit)
         success = False
     if not success:
-        logger.warning(wrn_txt)
+        print_info(wrn_txt, 'warning', logger)
         return success, in_data
 
     # When units are specified and different, try use them for converting
@@ -81,7 +83,7 @@ def convert(in_data, from_unit=None, to_unit=None):
         return success, in_data / 1000.
     else:
         success = False
-        wrn_txt = "No valid combination of units specified (from {} to {}). No conversion done".format(
+        warn_txt = "No valid combination of units specified (from {} to {}). No conversion done".format(
             from_unit, to_unit)
-        logger.warning(wrn_txt)
+        print_info(warn_txt, 'warning', logger)
         return success, in_data

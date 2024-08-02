@@ -15,7 +15,7 @@ from scipy.interpolate import interp1d
 import segyio
 
 from blixt_utils.utils import isnan
-from blixt_utils.utils import nan_corrcoef
+from blixt_utils.utils import nan_corrcoef, print_info
 # If wavelet_plot is used, I get an 'ImportError' "cannot import name 'wavelet_plot' from partially initialized
 # module 'blixt_utils.plotting.helpers' (most likely due to a circular import)"
 # from blixt_utils.plotting.helpers import wavelet_plot
@@ -53,15 +53,13 @@ def read_segy(f, lag=0, twod=False, byte_il=189, byte_xl=193):
     info_txt += '[read_segy] number of traces: {0}, samples: {1}, sample rate: {2} s\n'.format(ntraces, nsamples, sr)
     info_txt += '[read_segy] first, last sample twt: {0}, {1} s\n'.format(twt[0], twt[-1])
     info_txt += '[read_segy] size: {:.2f} Mb ({:.2f} Gb)'.format(size_mb, size_mb/1024)
-    print(info_txt)
-    logger.info(info_txt)
+    print_info(info_txt, 'info', logger)
     if not twod:
         info_txt = '[read_segy] inlines: {:.0f}, min={:.0f}, max={:.0f}\n'.format(
             inlines.size, inlines.min(), inlines.max())
         info_txt += '[read_segy] crosslines: {:.0f}, min={:.0f}, max={:.0f}'.format(
             crosslines.size, crosslines.min(), crosslines.max())
-        print(info_txt)
-        logger.info(info_txt)
+        print_info(info_txt, 'info', logger)
         return xr.DataArray(data, dims=['INLINE', 'XLINE', 'TWT'], coords=[inlines, crosslines, twt]), \
                nsamples, sr, twt, ntraces, header, inlines, crosslines
     else:
@@ -202,9 +200,8 @@ def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name, verbos
     """
     tmp = project_files_info(project_table_name, sheet_name)
     if well_name not in tmp:
-        wrn_txt = 'Well {} not listed in {} sheet of {}'.format(well_name, sheet_name, project_table_name)
-        print(wrn_txt)
-        logger.warning(wrn_txt)
+        warn_txt = 'Well {} not listed in {} sheet of {}'.format(well_name, sheet_name, project_table_name)
+        print_info(warn_txt, 'warning', logger)
         return None, None
 
     kwargs = tmp[well_name]
@@ -217,8 +214,7 @@ def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name, verbos
     filename = kwargs.pop('filename')
     if filename is None:
         info_txt = 'No filename specified for {}, return None'.format(well_name)
-        logger.info(info_txt)
-        print('WARNING: {}'.format(info_txt))
+        print_info(info_txt, 'info', logger)
         return None
     if not os.path.isfile(filename):
         # try adding the default working directory to the file path
@@ -416,6 +412,50 @@ def read_general_ascii(filename, data_type, **kwargs):
         raise IOError('Unknown data type: {}'.format(data_type))
 
 
+def read_general_ascii_GENERAL(
+        filename: str,
+        separator: str,
+        data_begins_on_row: int,
+        name_indexes: dict,
+        unit_indexes: dict,
+        infer_names_from_row=None,
+        infer_units_from_row=None,
+        data_can_contain_strings=False
+):
+    """
+    General ASCII file reader that isn't specific to any type of data.
+    It requires that the data are arranged as rows and columns,
+    where each column is a data parameter
+
+    :param filename:
+    :param separator:
+    :param data_begins_on_row:
+        int
+        Pythonic row number (starting at 0) of the first line of data
+    :param name_indexes:
+        dict
+        Dictionary with "column index": "variable name" key:value pairs
+        Column index starts with 0 as the first column
+    :param unit_indexes:
+        dict
+        Dictionary with "column index": "units" key:value pairs
+        Column index starts with 0 as the first column
+    :param infer_names_from_row:
+        int
+        Pythonic row number (starting at 0) where we can deduce the names of the data parameters
+    :param infer_units_from_row:
+        int
+        Pythonic row number (starting at 0) where we can deduce the units of the data parameters
+    :param data_can_contain_strings
+    :return:
+    """
+    # Make sure number of columns is the same for each row - if not: Break
+    with open(filename, 'r') as f:
+        for i, line in enumerate(f.readlines()):
+            if i == data_begins_on_row:
+                return _return_valid_line(line, separator)
+
+
 def project_wells_new(filename, working_dir):
     """
     Returns a dictionary containing the requested wells from the project excel table
@@ -437,7 +477,7 @@ def project_wells_new(filename, working_dir):
         error_txt = \
             "Project table contain specific column for log name translation (Translate log name)." + \
             'Old version of project_wells must be used'
-        logger.warning(error_txt)
+        print_info(error_txt, 'error', logger)
         raise IOError(error_txt)
     for i, ans in enumerate(table['Given well name']):
         # skip empty rows
@@ -493,7 +533,7 @@ def project_wells_new(filename, working_dir):
             if temp_file is False:
                 warn_txt = 'Warning, las file {} for well {} does not exist'.format(
                     table['las file'][i], ans)
-                logger.warning(warn_txt)
+                print_info(warn_txt, 'warning', logger)
                 raise Warning(warn_txt)
             result[test_file_path(table['las file'][i], working_dir)] = temp_dict
     return result
@@ -549,7 +589,7 @@ def project_wells(filename, working_dir):
                                 error_txt = \
                                     "Log name {} contain 'Translate to' symbol, ".format(log_name) + \
                                     'new version of project_wells must be used'
-                                logger.warning(error_txt)
+                                print_info(error_txt, 'error', logger)
                                 raise IOError(error_txt)
                             log_dict[log_name] = key
                 temp_dict['logs'] = log_dict
@@ -561,7 +601,7 @@ def project_wells(filename, working_dir):
             if temp_file is False:
                 warn_txt = 'Warning, las file {} for well {} does not exist'.format(
                     table['las file'][i], ans)
-                logger.warning(warn_txt)
+                print_info(warn_txt, 'warning', logger)
                 raise Warning(warn_txt)
             result[test_file_path(table['las file'][i], working_dir)] = temp_dict
     return result
@@ -763,8 +803,7 @@ def project_templates(filename):
                 result[ans.upper().strip()][key.lower()] = None if isnan(table[key][i]) else table[key][i]
             except KeyError as e:
                 warn_txt = 'Key {} not found in Well setting sheet in {}'.format(e, filename)
-                # print(warn_txt)
-                logger.warning(warn_txt)
+                print_info(warn_txt, 'warning', logger)
 
 
     return result
@@ -966,8 +1005,7 @@ def write_pcube_lfc(working_dir, results, wi_name, log_table, cutoffs_str, suffi
             results[log_table['S velocity'].lower()])[0, 1]
         if vp_vs > 0.9:
             warn_txt = 'Correlation between Vp and Vs is spuriously high in {}, replaced with a ccoef of 0.9'.format(name)
-            logger.warning(warn_txt)
-            print('WARNING: {}'.format(warn_txt))
+            print_info(warn_txt, 'warning', logger)
             vp_vs = 0.9
         f.write('XCCVpVs: {:.2f}\n'.format(vp_vs))
         f.write('XCCVpRho: {:.4f}\n'.format(nan_corrcoef(
@@ -1258,7 +1296,7 @@ def write_regression(filename, reg_params, log_name, well_name, interval_name, r
         warn_txt = 'The given regression type,{}, is not one of the recognized types: {}'.format(
             reg_type, ', '.join(allowed_reg_types)
         )
-        logger.warning(warn_txt)
+        print_info(warn_txt, 'warning', logger)
         raise IOError(warn_txt)
     if sheet_name is None:
         sheet_name = 'Regressions'
@@ -1749,8 +1787,7 @@ def write_las(filename, wh, lh, data, overwrite=False):
     """
     if os.path.isfile(filename) and (not overwrite):
         warn_txt = 'File {} already exist. Write cancelled'.format(filename)
-        print('WARNING: {}'.format(warn_txt))
-        logger.warning(warn_txt)
+        print_info(warn_txt, 'warning', logger)
         return
 
     out = (
@@ -2178,7 +2215,7 @@ def well_excel_reader(well_name, file_name, sheet_name, header_line, well_key, d
 
     if well_name not in list(data_dict.keys()):
         raise IOError('Current well {} is not listed in file {}'.format(
-            well_name, os.path.basename(filename)
+            well_name, os.path.basename(file_name)
         ))
 
     null_val = 'NaN'
@@ -2224,8 +2261,7 @@ def interpret_rename_string(rename_string, keep_case=False):
         names = pair.split('->')
         if len(names) > 2:
             warn_txt = "Translation pairs should be separated by ',': ".format(pair)
-            print('WARNING: {}'.format(warn_txt))
-            logger.warning(warn_txt)
+            print_info(warn_txt, 'warning', logger)
             continue
         if keep_case:
             return_dict[names[1].strip()] = names[0].strip()
@@ -2267,15 +2303,13 @@ def interpret_cutoffs_string(cutoffs_string):
             m_symb = '<'  # less
         else:
             warn_txt = 'No valid masking symbol given in {}'.format(pair)
-            print('WARNING: {}'.format(warn_txt))
-            logger.warning(warn_txt)
+            print_info(warn_txt, 'warning', logger)
             continue
 
         tmp = pair.split(m_symb)
         if len(tmp) > 2:
             warn_txt = "Something fishy in cutoffs string: ".format(cutoffs_string)
-            print('WARNING: {}'.format(warn_txt))
-            logger.warning(warn_txt)
+            print_info(warn_txt, 'warning', logger)
             continue
         return_dict[tmp[0].strip().lower()] = [m_symb, float(tmp[1].strip())]
     if len(return_dict) < 1:
@@ -2309,8 +2343,49 @@ def _split(_string, _separator):
         if item.strip().replace('.', '', 1).replace('-', '', 1).isdigit():
             clean_list.append(float(item.strip()))
         else:
-            clean_list.append(item.strip().replace('"', ''))
+            clean_list.append(my_float(item.strip().replace('"', '')))
     return clean_list
+
+
+def _return_valid_line(
+        _string: str,
+        _separator: str,
+):
+    """
+    Splits up the string into data items, which can be both floats and strings.
+    For empty lines it return False
+
+    :param _string:
+    :param _separator:
+    :return:
+        list or False
+    """
+    # Skip empty lines!
+    if len(_string.strip().replace('\t', '')) == 0:
+        return False
+
+    # Strings are enclosed in " ", and can contain spaces, so we cant split the line using spaces
+    # Instead we need to first identify all strings that are enclosed in " "
+    match = re.findall("\".*?\"", _string)
+    if len(match) > 0:
+        # Replace all the spaces within the matches above with any string (without spaces)
+        for _match in match:
+            if len(_match) > 2:
+                _string = _string.replace(_match, _match.replace(' ', 'XXX'))
+
+    _data = _split(_string, _separator)
+
+    if len(match) > 0:
+        # Now replace the above XXX with space again
+        for i, _item in enumerate(_data):
+            if isinstance(_item, str):
+                _data[i] = _item.replace('XXX', ' ')
+
+    # TODO
+    # Create a 1D xarray.DataArray for each column, with name and unit
+    # Create a common xarray.Dataset for all columns
+
+    return _data
 
 
 def example_parsing_webpage():
