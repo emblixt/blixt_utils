@@ -416,11 +416,9 @@ def read_general_ascii_GENERAL(
         filename: str,
         separator: str,
         data_begins_on_row: int,
-        name_indexes: dict,
-        unit_indexes: dict,
-        infer_names_from_row=None,
-        infer_units_from_row=None,
-        data_can_contain_strings=False
+        var_names=None,
+        var_units=None,
+        encoding=None
 ):
     """
     General ASCII file reader that isn't specific to any type of data.
@@ -432,28 +430,85 @@ def read_general_ascii_GENERAL(
     :param data_begins_on_row:
         int
         Pythonic row number (starting at 0) of the first line of data
-    :param name_indexes:
-        dict
-        Dictionary with "column index": "variable name" key:value pairs
-        Column index starts with 0 as the first column
-    :param unit_indexes:
-        dict
-        Dictionary with "column index": "units" key:value pairs
-        Column index starts with 0 as the first column
-    :param infer_names_from_row:
-        int
-        Pythonic row number (starting at 0) where we can deduce the names of the data parameters
-    :param infer_units_from_row:
-        int
-        Pythonic row number (starting at 0) where we can deduce the units of the data parameters
-    :param data_can_contain_strings
+    :param var_names:
+        int or list
+        Either (pythonic) row number of where the variable names can be read in the file (NOTE: must have
+        the same number of items and separator as the data for it to work)
+        OR
+        list of variables names. Its length must match the number of data columns
+
+        If None: generic variable names are created automatically
+    :param var_units:
+        int or list
+        Either (pythonic) row number of where the units can be read in the file (NOTE: must have
+        the same number of items and separator as the data for it to work)
+        OR
+        list of units. Its length must match the number of data columns
+
+        If None: empty units are assigned each variable
+    :param encoding:
+        str
+        Name of encoding to use when reading the data
+        'utf-8-sig' seems useful
+
     :return:
+        data, units
+        data: dictionary with variable names as key, and its data (list) as values
+        units: dictionary with variable names as key, and its unit (str) as values
     """
-    # Make sure number of columns is the same for each row - if not: Break
-    with open(filename, 'r') as f:
+    # First make sure we can extract one row of data, and assess the number of variables:
+    n = None
+    with open(filename, 'r', encoding=encoding) as f:
         for i, line in enumerate(f.readlines()):
             if i == data_begins_on_row:
-                return _return_valid_line(line, separator)
+                n = len(_return_valid_line(line, separator))
+                break
+    if n is None:
+        return None, None
+
+    # Determine variable names
+    if var_names is None:
+        names = ['var_{}'.format(i+1) for i in np.arange(n)]
+    elif isinstance(var_names, int):
+        with open(filename, 'r', encoding=encoding) as f:
+            for i, line in enumerate(f.readlines()):
+                if i == var_names:
+                    names = _return_valid_line(line, separator)
+                    break
+    else:
+        names = var_names
+    # Create data container
+    data = {key: [] for key in names}
+
+    # Determine variable units
+    if var_units is None:
+        _units = [''] * n
+    elif isinstance(var_units, int):
+        with open(filename, 'r', encoding=encoding) as f:
+            for i, line in enumerate(f.readlines()):
+                if i == var_units:
+                    _units = _return_valid_line(line, separator)
+                    break
+    else:
+        _units = var_units
+    # Create unit container
+    units = {}
+    for i, name in enumerate(names):
+        units[name] = _units[i]
+
+    # Now extract the data
+    with open(filename, 'r', encoding=encoding) as f:
+        for i, line in enumerate(f.readlines()):
+            if i >= data_begins_on_row:
+                _line = _return_valid_line(line, separator)
+                if isinstance(_line, bool) and not _line:
+                    continue
+                if len(_line) != n:
+                    break
+                for j, _item in enumerate(_line):
+                    data[names[j]].append(_item)
+
+    return data, units
 
 
 def project_wells_new(filename, working_dir):
@@ -1896,11 +1951,12 @@ def get_las_header(filename):
     :param filename:
     :return:
     """
-    for row in open(filename, 'r'):
-        if '~W' in row:
-            break
-        else:
-            yield row
+    with open(filename, 'r') as f:
+        for row in f.readlines():
+            if '~W' in row:
+                break
+            else:
+                yield row
 
 
 def get_las_well_info(filename):
@@ -1913,20 +1969,21 @@ def get_las_well_info(filename):
     well_info_section = False
     curve_info_section = False
     header = True
-    for row in open(filename, 'r'):
-        # test wich section you are in
-        if '~W' in row:
-            well_info_section = True
-        if '~C' in row:
-            curve_info_section = True
+    with open(filename, 'r') as f:
+        for row in f.readlines():
+            # test wich section you are in
+            if '~W' in row:
+                well_info_section = True
+            if '~C' in row:
+                curve_info_section = True
 
-        if curve_info_section:
-            break
-        if well_info_section:
-            header = False
-            yield row
-        if header:
-            continue
+            if curve_info_section:
+                break
+            if well_info_section:
+                header = False
+                yield row
+            if header:
+                continue
 
 
 def get_las_curve_info(filename):
@@ -1939,20 +1996,46 @@ def get_las_curve_info(filename):
     curve_info_section = False
     data_section = False
     header = True
-    for row in open(filename, 'r'):
-        # test wich section you are in
-        if '~C' in row:
-            curve_info_section = True
-        if '~A' in row:
-            data_section = True
+    with open(filename, 'r') as f:
+        for row in f.readlines():
+            # test wich section you are in
+            if '~C' in row:
+                curve_info_section = True
+            if '~A' in row:
+                data_section = True
 
-        if data_section:
-            break
-        if curve_info_section:
-            header = False
-            yield row
-        if header:
+            if data_section:
+                break
+            if curve_info_section:
+                header = False
+                yield row
+            if header:
+                continue
+
+
+def get_las_names_units(filename):
+    """
+    Iterates over the curve info section of a las file and returns a list of all
+    curve names, and a list with their respective units
+    :param filename:
+    :return:
+    """
+    names = []
+    units = []
+    for line in get_las_curve_info(filename):
+        if line[0] in ['~', '#']:
             continue
+        # index of seperator
+        if re.search("[.]{1}", line) is None:
+            print('Caught problem')
+            continue
+        mnem_end = re.search("[.]{1}", line).end()
+        unit_end = mnem_end + re.search("[ ]{1}", line[mnem_end:]).end()
+        # divide line
+        names.append(line[:mnem_end - 1].strip().lower())
+        units.append(line[mnem_end:unit_end].strip().lower())
+
+    return names, units
 
 
 def well_reader(lines, file_format='las'):
@@ -2107,7 +2190,8 @@ def well_reader(lines, file_format='las'):
                 desc = desc.strip()
 
             # convert empty string ("") to None
-            if len(data) == 0: data = None
+            if len(data) == 0:
+                data = None
             if section == "well_info" and mnem == "NULL":
                 # save standard LAS NULL value
                 null_val = data.rstrip('0')
@@ -2410,30 +2494,5 @@ def example_parsing_webpage():
         print(row.text)
 
 
-def test1():
-    las_file = os.path.dirname(__file__).replace('blixt_utils\\blixt_utils\\io', 'blixt_rp\\test_data\\Well A.las')
-    project_table = os.path.dirname(__file__).replace('blixt_utils\\blixt_utils\\io', 'blixt_rp\\excels\\project_table.xlsx')
-    print(project_table)
-    working_dir = os.path.dirname(__file__).replace('blixt_utils\\blixt_utils\\io', '')
-    wells = project_wells_new(project_table, working_dir)
-    print(list(wells.keys()))
-
-
-def test2():
-    typical_rename_string = 'LFP_VP_VIRGIN->VP_VIRG, LFP_VS_VIRGIN->VS_VIRG, LFP_AI_VIRGIN->AI_VIRG'
-    print(interpret_rename_string(typical_rename_string))
-
-
-def test_read_checkshot_or_wellpath():
-    from blixt_rp.core.well import Project
-    dir_path = os.path.dirname(os.path.realpath(__file__)).replace('\\blixt_utils\\blixt_utils\\io', '')
-    project_table = os.path.join(dir_path, 'blixt_rp', 'excels', 'project_table.xlsx')
-    wp = Project(project_table=project_table)
-    wells = wp.load_all_wells()
-    this_well = list(wells.keys())[0]
-    read_checkshot_or_wellpath(wp.project_table, this_well, "Checkshots")
-
-
 if __name__ == '__main__':
-    # test_read_checkshot_or_wellpath()
     example_parsing_webpage()
