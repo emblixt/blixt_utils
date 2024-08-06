@@ -29,6 +29,8 @@ def convert(in_data, from_unit=None, to_unit=None):
         these_units = these_units.replace('$', '')
         these_units = these_units.replace('^', '')
         these_units = these_units.replace('.', ' ')
+        if these_units.lower() in ['fract', 'unitless']:
+            these_units = '-'
         return these_units.lower()
 
     from_unit = clean_up(from_unit)
@@ -44,8 +46,9 @@ def convert(in_data, from_unit=None, to_unit=None):
         wrn_txt = "No 'to_unit' specified. No conversion done"
         success = False
     elif from_unit == to_unit:
-        wrn_txt = "'from_unit': {}, equals 'to_unit': {}. No conversion done".format(from_unit, to_unit)
-        success = False
+        wrn_txt = "'from_unit': {}, equals 'to_unit': {}. Conversion not necessary".format(
+            from_unit, to_unit)
+        return True, in_data
     if not success:
         print_info(wrn_txt, 'warning', logger)
         return success, in_data
@@ -76,9 +79,9 @@ def convert(in_data, from_unit=None, to_unit=None):
         return success, in_data / 1000.
     elif from_unit == 's' and to_unit == 'ms':
         return success, in_data * 1000.
-    elif (from_unit == 'g/cm3 m/s' or from_unit == 'm/s g/cm3') and to_unit == 'kPa s/m':
+    elif (from_unit in ['g/cm3 m/s', 'g/cm3_m/s', 'm/s g/cm3']) and to_unit == 'kPa s/m':
         return success, in_data * 1.
-    elif (from_unit == 'g/cm3 m/s' or from_unit == 'm/s g/cm3' or from_unit == 'kPa s/m') and \
+    elif (from_unit in ['g/cm3 m/s', 'g/cm3_m/s', 'm/s g/cm3', 'kPa s/m']) and \
             (to_unit == 'MPa s/m'):
         return success, in_data / 1000.
     else:
