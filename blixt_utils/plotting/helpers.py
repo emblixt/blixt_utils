@@ -411,46 +411,40 @@ def axis_plot(ax, y, data, limits, styles, yticks=True, nxt=4, fill_betweens=Non
             raise IOError('fill_betweens must be a list')
         for fill in fill_betweens:
             # try to cover the case when filling between a curve and a constant
-            data_0 = None
-            min_limit = None
-            delta_limit = None
             if fill[0] is None:
                 data_0 = 0.0
-                min_limit = limits[fill[1]][0]  # when this is None, use the limits of the other data
-                delta_limit = limits[fill[1]][1] - limits[fill[1]][0]
+                min_limit_0 = limits[fill[1]][0]  # when this is None, use the limits of the other data
+                delta_limit_0 = limits[fill[1]][1] - limits[fill[1]][0]
             elif isinstance(fill[0], str):
                 data_0 = float(fill[0])
-                min_limit = limits[fill[1]][0]
-                delta_limit = limits[fill[1]][1] - limits[fill[1]][0]
+                min_limit_0 = limits[fill[1]][0]
+                delta_limit_0 = limits[fill[1]][1] - limits[fill[1]][0]
             elif isinstance(fill[0], int):
                 data_0 = data[fill[0]]
-                min_limit = limits[fill[0]][0]
-                delta_limit = limits[fill[0]][1] - limits[fill[0]][0]
+                min_limit_0 = limits[fill[0]][0]
+                delta_limit_0 = limits[fill[0]][1] - limits[fill[0]][0]
             else:
                 raise IOError('Error in fill_betweens: ', fill[0])
-            data_1 = None
             if fill[1] is None:
                 data_1 = 0.0
-                min_limit = limits[fill[0]][0]
-                delta_limit = limits[fill[0]][1] - limits[fill[0]][0]
+                min_limit_1 = limits[fill[0]][0]
+                delta_limit_1 = limits[fill[0]][1] - limits[fill[0]][0]
             elif isinstance(fill[1], str):
                 data_1 = float(fill[1])
-                min_limit = limits[fill[0]][0]
-                delta_limit = limits[fill[0]][1] - limits[fill[0]][0]
+                min_limit_1 = limits[fill[0]][0]
+                delta_limit_1 = limits[fill[0]][1] - limits[fill[0]][0]
             elif isinstance(fill[1], int):
                 data_1 = data[fill[1]]
-                min_limit = limits[fill[1]][0]
-                delta_limit = limits[fill[1]][1] - limits[fill[1]][0]
+                min_limit_1 = limits[fill[1]][0]
+                delta_limit_1 = limits[fill[1]][1] - limits[fill[1]][0]
             else:
                 raise IOError('Error in fill_betweens: ', fill[1])
 
             # sd is the scaled version of the data that matches data[0]
             sd0 = limits[0][0] + (limits[0][1] - limits[0][0]) * \
-                  (data_0 - min_limit) / delta_limit
-                  # (data_0 - limits[fill[0]][0]) / (limits[fill[0]][1] - limits[fill[0]][0])
+                  (data_0 - min_limit_0) / delta_limit_0
             sd1 = limits[0][0] + (limits[0][1] - limits[0][0]) * \
-                  (data_1 - min_limit) / delta_limit
-                  # (data_1 - limits[fill[1]][0]) / (limits[fill[1]][1] - limits[fill[1]][0])
+                  (data_1 - min_limit_1) / delta_limit_1
             axes[0].fill_betweenx(y, sd0, sd1, sd0 > sd1, color=fill[2])
 
     # set up the x range differently for each plot
