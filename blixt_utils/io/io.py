@@ -329,7 +329,7 @@ def read_general_ascii(filename, data_type, **kwargs):
     def contain_strings(l:list):
         return not all([not isinstance(_x, str) for _x in l])
 
-    def return_valid_line(line_string, sep, _min_cols):
+    def return_valid_line(line_string, sep, _num_cols=None):
         # Skip empty lines!
         if len(line_string.strip().replace('\t', '')) == 0:
             return False
@@ -337,8 +337,9 @@ def read_general_ascii(filename, data_type, **kwargs):
         _data = _split(line_string, sep)
 
         # skip lines shorter than minimum columns
-        if len(_data) < _min_cols:
-            return False
+        if _num_cols is not None:
+            if len(_data) != _num_cols:
+                return False
 
         # Try to convert all elements of data list to floats
         _data = [my_float(_x) for _x in _data]
@@ -354,27 +355,25 @@ def read_general_ascii(filename, data_type, **kwargs):
     separator = separator.replace('"', '')
     md_column = int(kwargs.pop('md column'))
     verbose = kwargs.pop('verbose', False)
-    minimum_number_columns = [md_column]
     if data_type == "Well paths":
         tvd_column = int(kwargs.pop('tvd column'))
         inclination_column = int(kwargs.pop('inclination column'))
-        minimum_number_columns.append(tvd_column)
-        minimum_number_columns.append(inclination_column)
-        min_cols = max(minimum_number_columns)
         if verbose:
             print('File: {}'.format(os.path.basename(filename)))
             print(' MD column: {}'.format(md_column))
             print(' TVD column: {}'.format(tvd_column))
             print(' INC column: {}'.format(inclination_column))
-            print(' Minimum number of columns: {}'.format(min_cols))
         data = {x: [] for x in ['TVD', 'MD', 'INC']}
         with open(filename, 'r') as f:
             i = 0
+            num_cols = None
             for line in f.readlines():
                 if i >= data_line - 1:
-                    this_line_of_data = return_valid_line(line, separator, min_cols)
+                    this_line_of_data = return_valid_line(line, separator, num_cols)
                     if not this_line_of_data:
                         continue
+                    if i == data_line - 1:
+                        num_cols = len(this_line_of_data)
                     data['MD'].append(this_line_of_data[md_column - 1])
                     data['TVD'].append(this_line_of_data[tvd_column - 1])
                     data['INC'].append(this_line_of_data[inclination_column - 1])
@@ -385,11 +384,6 @@ def read_general_ascii(filename, data_type, **kwargs):
         time_column = None
         owt_column = kwargs.pop('owt column')
         twt_column = kwargs.pop('twt column')
-        if owt_column is not None:
-            minimum_number_columns.append(owt_column)
-        if twt_column is not None:
-            minimum_number_columns.append(twt_column)
-        min_cols = max(minimum_number_columns)
         if twt_column is None:
             if owt_column is None:
                 raise IOError('Column number for both one-, and two-, way time are lacking')
@@ -402,11 +396,14 @@ def read_general_ascii(filename, data_type, **kwargs):
         data = {x: [] for x in ['MD', 'TWT']}
         with open(filename, 'r') as f:
             i = 0
+            num_cols = None
             for line in f.readlines():
                 if i >= data_line - 1:
-                    this_line_of_data = return_valid_line(line, separator, min_cols)
+                    this_line_of_data = return_valid_line(line, separator, num_cols)
                     if not this_line_of_data:
                         continue
+                    if i == data_line - 1:
+                        num_cols = len(this_line_of_data)
                     data['MD'].append(this_line_of_data[md_column - 1])
                     data['TWT'].append(this_line_of_data[time_column - 1] * sign_multiplier)
                 i += 1
