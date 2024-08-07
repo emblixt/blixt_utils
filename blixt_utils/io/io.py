@@ -343,9 +343,9 @@ def read_general_ascii(filename, data_type, **kwargs):
         # Try to convert all elements of data list to floats
         _data = [my_float(_x) for _x in _data]
 
-        # skip lines that contain strings
-        if contain_strings(_data):
-            return False
+        # # skip lines that contain strings
+        # if contain_strings(_data):
+        #     return False
 
         return _data
 
@@ -357,13 +357,16 @@ def read_general_ascii(filename, data_type, **kwargs):
     minimum_number_columns = [md_column]
     if data_type == "Well paths":
         tvd_column = int(kwargs.pop('tvd column'))
-        if verbose:
-            print('File: {}'.format(os.path.basename(filename)))
-            print(' TVD column: {}'.format(tvd_column))
         inclination_column = int(kwargs.pop('inclination column'))
         minimum_number_columns.append(tvd_column)
         minimum_number_columns.append(inclination_column)
         min_cols = max(minimum_number_columns)
+        if verbose:
+            print('File: {}'.format(os.path.basename(filename)))
+            print(' MD column: {}'.format(md_column))
+            print(' TVD column: {}'.format(tvd_column))
+            print(' INC column: {}'.format(inclination_column))
+            print(' Minimum number of columns: {}'.format(min_cols))
         data = {x: [] for x in ['TVD', 'MD', 'INC']}
         with open(filename, 'r') as f:
             i = 0
