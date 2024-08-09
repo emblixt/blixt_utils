@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
+from numpy.random import default_rng
 
 
 def residuals(x, t, y, target_function=None, weight=None, kwargs=None):
@@ -61,9 +62,40 @@ def residuals(x, t, y, target_function=None, weight=None, kwargs=None):
         return weight * (target_function(t1, *x, **kwargs) - y)
 
 
+def gen_test_data(x, t, target_function=None, noise=0., n_outliers=0, seed=None):
+    """
+
+    :param x:
+    :param t:
+    :param target_function:
+    :param noise:
+    :param n_outliers:
+    :param seed:
+    :return:
+    """
+    rng = default_rng(seed)
+    y = target_function(t, *x)
+    y_mean = np.nanmean(y)
+    error = noise * rng.standard_normal(t.size)
+    outliers = rng.integers(0, t.size, n_outliers)
+    error[outliers] *= 10
+
+    return y + error
+
+
 def linear_function(_t, _a, _b):
     # The linear fitting function
     return _a*_t + _b
+
+
+def exp_function(_t, _a, _b, _c):
+    return _a + _b * np.exp(_c * _t)
+
+
+def depth_trend(_t, _vp_top, _vp_matrix, _b):
+    # Vp depth trend often used by Ikon Science
+    # _t is TVD
+    return _vp_matrix - (_vp_matrix - _vp_top) * np.exp(-1. * _b * _t)
 
 
 def play_with_data_fit():
@@ -106,5 +138,71 @@ def play_with_data_fit():
     plt.show()
 
 
+def compare_loss_functions():
+    fig, ax = plt.subplots()
+
+    # Generate training data
+    # Two blocks of data, shifted in value and "depth"
+    a = 3000.
+    b = 1500.
+    c = -0.03
+    t_min_1 = 1000.  # TVD in m
+    t_max_1 = 2000.
+    n_points = 300
+    t_train_1 = np.linspace(t_min_1, t_max_1, n_points)
+    y_train_1 = gen_test_data([a, b, c], t_train_1,  target_function=exp_function,
+                            noise=4.3, n_outliers=30)
+
+    a = 3500.
+    t_min_2 = 3000.  # TVD in m
+    t_max_2 = 4000.
+    t_train_2 = np.linspace(t_min_2, t_max_2, n_points)
+    y_train_2 = gen_test_data([a, b, c], t_train_2,  target_function=exp_function,
+                              noise=4.3, n_outliers=30)
+
+    t_train = np.concatenate([t_train_1, t_train_2])
+    y_train = np.concatenate([y_train_1, y_train_2])
+
+    ax.plot(t_train, y_train, 'o')
+
+    # Start fitting a curve to the training data
+    x0 = [1000., 1000., -0.1]
+    t_test = np.linspace(t_min_1, t_max_2, n_points * 10)
+    ax.plot(t_test, exp_function(t_test, a, b, c), 'k', linewidth=2, label='true')
+
+    res_lsq = least_squares(residuals, x0,
+                            args=(t_train, y_train),
+                            kwargs= {'target_function': exp_function}, verbose=0)
+    print('Default linear least squares: Success? {}'.format(res_lsq['success']))
+    print(' {}'.format(res_lsq['message']))
+    print(' x0: ', x0)
+    print(' x: ', res_lsq['x'])
+    ax.plot(t_test, exp_function(t_test, *res_lsq.x), label='linear loss')
+
+    res_soft_l1 = least_squares(residuals, x0, loss='soft_l1', f_scale=0.1,
+                                args=(t_train, y_train),
+                                kwargs={'target_function': exp_function}, verbose=0)
+    print('Soft L1 norm: Success? {}'.format(res_soft_l1['success']))
+    print(' {}'.format(res_soft_l1['message']))
+    print(' x0: ', x0)
+    print(' x: ', res_soft_l1['x'])
+    ax.plot(t_test, exp_function(t_test, *res_soft_l1.x), label='soft l1 loss')
+
+    res_log = least_squares(residuals, x0, loss='cauchy', f_scale=0.1,
+                            args=(t_train, y_train),
+                            kwargs={'target_function': exp_function}, verbose=0)
+    print('Cauchy norm: Success? {}'.format(res_log['success']))
+    print(' {}'.format(res_log['message']))
+    print(' x0: ', x0)
+    print(' x: ', res_log['x'])
+    ax.plot(t_test, exp_function(t_test, *res_log.x), 'r--', label='cauchy loss')
+
+    ax.set_xlabel('t')
+    ax.set_ylabel('y')
+    ax.legend()
+    plt.show()
+
+
 if __name__ == '__main__':
-    play_with_data_fit()
+    # play_with_data_fit()
+    compare_loss_functions()
