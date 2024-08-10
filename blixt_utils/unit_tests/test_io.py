@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import time
 
 from blixt_utils.io.io import read_general_ascii_GENERAL as read_file, project_wells_new
-from blixt_utils.io.io import get_las_well_info, get_las_curve_info, get_las_header, get_las_names_units
+from blixt_utils.io.io import (get_las_well_info, get_las_curve_info, get_las_header, get_las_names_units,
+                               get_las_start_data_line)
 
 test_file_dir = str(os.path.dirname(__file__).replace(
     'blixt_utils\\blixt_utils\\unit_tests',
@@ -74,7 +75,11 @@ class IOTestCase(unittest.TestCase):
         names, units = get_las_names_units(fname)
         print(names)
         print(units)
+        data_row = get_las_start_data_line(fname)
+        print(data_row)
+
         self.assertTrue(len(names) == len(units))
+        self.assertIsInstance(data_row, int)
 
 
     def test1(self):

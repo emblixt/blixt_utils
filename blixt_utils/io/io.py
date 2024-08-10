@@ -508,6 +508,10 @@ def read_general_ascii_GENERAL(
                 for j, _item in enumerate(_line):
                     data[names[j]].append(_item)
 
+    # TODO
+    # Create a 1D xarray.DataArray for each column, with name and unit
+    # Create a common xarray.Dataset for all columns
+
     return data, units
 
 
@@ -1944,14 +1948,16 @@ def write_las(filename, wh, lh, data, overwrite=False):
         f.write(out)
 
 
-def get_las_header(filename):
+def get_las_header(filename, encoding=None):
     """
     Iterates over the las files header lines.
 
     :param filename:
+    :param encoding:
+        str
     :return:
     """
-    with open(filename, 'r') as f:
+    with open(filename, 'r', encoding=encoding) as f:
         for row in f.readlines():
             if '~W' in row:
                 break
@@ -1959,17 +1965,19 @@ def get_las_header(filename):
                 yield row
 
 
-def get_las_well_info(filename):
+def get_las_well_info(filename, encoding=None):
     """
     Iterates over the las file well info lines.
 
     :param filename:
+    :param encoding:
+        str
     :return:
     """
     well_info_section = False
     curve_info_section = False
     header = True
-    with open(filename, 'r') as f:
+    with open(filename, 'r', encoding=encoding) as f:
         for row in f.readlines():
             # test wich section you are in
             if '~W' in row:
@@ -1986,17 +1994,19 @@ def get_las_well_info(filename):
                 continue
 
 
-def get_las_curve_info(filename):
+def get_las_curve_info(filename, encoding=None):
     """
     Iterates over the las file curve info lines.
 
     :param filename:
+    :param encoding:
+        str
     :return:
     """
     curve_info_section = False
     data_section = False
     header = True
-    with open(filename, 'r') as f:
+    with open(filename, 'r', encoding=encoding) as f:
         for row in f.readlines():
             # test wich section you are in
             if '~C' in row:
@@ -2013,16 +2023,19 @@ def get_las_curve_info(filename):
                 continue
 
 
-def get_las_names_units(filename):
+def get_las_names_units(filename, encoding=None):
     """
     Iterates over the curve info section of a las file and returns a list of all
     curve names, and a list with their respective units
+
     :param filename:
+    :param encoding:
+        str
     :return:
     """
     names = []
     units = []
-    for line in get_las_curve_info(filename):
+    for line in get_las_curve_info(filename, encoding=encoding):
         if line[0] in ['~', '#']:
             continue
         # index of seperator
@@ -2033,9 +2046,23 @@ def get_las_names_units(filename):
         unit_end = mnem_end + re.search("[ ]{1}", line[mnem_end:]).end()
         # divide line
         names.append(line[:mnem_end - 1].strip().lower())
-        units.append(line[mnem_end:unit_end].strip().lower())
+        units.append(line[mnem_end:unit_end].strip())
 
     return names, units
+
+
+def get_las_start_data_line(filename, encoding=None):
+    """
+
+    :param filename:
+    :param encoding:
+    :return: Pythonic line number of where the data starts
+    """
+    with open(filename, 'r', encoding=encoding) as f:
+        for i, row in enumerate(f.readlines()):
+            if '~A' in row:
+                return i + 1
+    return None
 
 
 def well_reader(lines, file_format='las'):
@@ -2464,10 +2491,6 @@ def _return_valid_line(
         for i, _item in enumerate(_data):
             if isinstance(_item, str):
                 _data[i] = _item.replace('XXX', ' ')
-
-    # TODO
-    # Create a 1D xarray.DataArray for each column, with name and unit
-    # Create a common xarray.Dataset for all columns
 
     return _data
 
