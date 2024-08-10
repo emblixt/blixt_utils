@@ -7,7 +7,6 @@ import time
 from blixt_utils.io.io import read_general_ascii_GENERAL as read_file, project_wells_new
 from blixt_utils.io.io import (get_las_well_info, get_las_curve_info, get_las_header, get_las_names_units,
                                get_las_start_data_line)
-
 test_file_dir = str(os.path.dirname(__file__).replace(
     'blixt_utils\\blixt_utils\\unit_tests',
     'blixt_rp\\test_data'))
