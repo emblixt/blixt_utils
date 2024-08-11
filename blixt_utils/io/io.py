@@ -2197,7 +2197,7 @@ def well_reader(lines, file_format='las'):
             mnem = line[:mnem_end - 1].strip()
             # XXX
             # mnem = rename_log_name(mnem)
-            unit = line[mnem_end:unit_end].strip().lower()
+            unit = line[mnem_end:unit_end].strip()
             data = line[unit_end:colon_end].strip()
             # in some las files, the unit is given directly behind the data, e.g "30.0 M"
             # When this is the case, clean the data and try add the unit to the unit
