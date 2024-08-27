@@ -15,7 +15,7 @@ from scipy.interpolate import interp1d
 import segyio
 
 from blixt_utils.utils import isnan
-from blixt_utils.utils import nan_corrcoef, print_info
+from blixt_utils.utils import nan_corrcoef, print_info, fix_well_name
 # If wavelet_plot is used, I get an 'ImportError' "cannot import name 'wavelet_plot' from partially initialized
 # module 'blixt_utils.plotting.helpers' (most likely due to a circular import)"
 # from blixt_utils.plotting.helpers import wavelet_plot
@@ -1663,13 +1663,6 @@ def check_if_excelfile_writable(fnm):
         pdir = '.'
     # target is creatable if parent dir is writable
     return os.access(pdir, os.W_OK)
-
-
-def fix_well_name(well_name):
-    if isinstance(well_name, str):
-        return well_name.replace('/', '_').replace('-', '_').replace(' ', '').upper()
-    else:
-        return
 
 
 def unique_names(table, column_name, well_names=True):

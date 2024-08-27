@@ -13,6 +13,7 @@ import getpass
 import socket
 from datetime import datetime
 import numpy as np
+import re
 
 import blixt_utils.misc.masks as msks
 
@@ -215,3 +216,33 @@ def print_info(
             logger.exception(text)
         else:
             raise IOError('Logger level: {}, not recognized'.format(level.upper()))
+
+
+def add_one(in_string):
+    trailing_nr = re.findall(r"\d+", in_string)
+    if len(trailing_nr) > 0:
+        new_trail = str(int(trailing_nr[-1]) + 1)
+        in_string = in_string.replace(trailing_nr[-1], new_trail)
+    else:
+        in_string = in_string + ' 1'
+    return in_string
+
+
+def fix_well_name(well_name):
+    if isinstance(well_name, str):
+        return well_name.replace('/', '_').replace('-', '_').replace(' ', '').upper()
+    else:
+        return
+
+
+def cycle_colors():
+    interval_colors = ['#E3F917', '#17becf']
+    # lazy iterator over two colors
+    # > next()
+    i = 0
+    while True:
+        if np.mod(i, 2) == 0:
+            yield interval_colors[0]
+        else:
+            yield interval_colors[1]
+        i += 1
