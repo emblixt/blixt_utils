@@ -115,7 +115,7 @@ def plot_one_column(well, try_these_log_types, templates, header_ax=None, plot_a
         block_name = cw.def_lb_name
 
     tb = well.block[block_name]  # this log block
-    depth = tb.logs['depth'].data
+    depth = tb.logs['depth'].values
 
     if mask is None:
         mask = np.array(np.ones(len(depth)), dtype=bool)  # All True values -> all data is included
@@ -168,7 +168,7 @@ def plot_one_column(well, try_these_log_types, templates, header_ax=None, plot_a
         axis_plot(plot_ax, None, None, None, None, ylim=[z_min, z_max])
     else:
         xlims = axis_plot(plot_ax, depth[mask],
-                          [tb.logs[log_names[xx]].data[mask] for xx in log_types],
+                          [tb.logs[log_names[xx]].values[mask] for xx in log_types],
                           limits, styles, yticks=False, fill_betweens=_fill_betweens,
                           ylim=[z_min, z_max])
         header_plot(header_ax, xlims, legends, styles)

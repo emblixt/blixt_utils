@@ -204,7 +204,7 @@ def print_info(
     if verbose:
         print('{}: {}'.format(level.upper(), text))
     if to_logger:
-        if level.lower() == 'info':
+        if level.lower() in ['info', 'information']:
             logger.info(text)
         elif level.lower() == 'warning':
             logger.warning(text)
@@ -229,6 +229,8 @@ def add_one(in_string):
 
 
 def fix_well_name(well_name):
+    if well_name is None:
+        return
     if isinstance(well_name, str):
         return well_name.replace('/', '_').replace('-', '_').replace(' ', '').upper()
     else:

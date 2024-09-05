@@ -1581,7 +1581,7 @@ def read_well_headers(filename):
     key_replacements = []
     data_column = 1E6
     coord_string = None
-    coord_identifier = '# Coordinate reference system X, Y:'
+    coord_identifier = '# Depth reference system X, Y:'
     column_headers = ['Name', 'Well symbol', 'Surface X', 'Surface Y', 'Well datum value', 'TD (MD)', 'Operator',
                       'TWT auto', 'STRING,Total Depth Type', 'STRING,Well UWI Type', 'STRING,Offshore Block',
                       'STRING,Comment', 'STRING,Well Comment', 'STRING,Offshore Area', 'STRING,Country',
@@ -1926,13 +1926,13 @@ def write_las(filename, wh, lh, data, overwrite=False):
     out += '\n'
 
     # start writing data
-    for i, md in enumerate(data['depth'].data):
+    for i, md in enumerate(data['depth'].values):
         out += '{0: <20}'.format(md)
         for key in list(data.keys()):
             if key == 'depth':
                 continue
             out += '{0: <20}'.format(
-                wh['null'].value if np.isnan(data[key].data[i]) else data[key].data[i]
+                wh['null'].value if np.isnan(data[key].values[i]) else data[key].values[i]
             )
         out += '\n'
 
