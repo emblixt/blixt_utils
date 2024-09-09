@@ -173,7 +173,7 @@ def calculate_depth_trend(
     #     discrete_indexes = [np.argmin((z[mask] - _z) ** 2) for _z in discrete_intervals]
 
     if verbose:
-        verbosity_level = 2
+        verbosity_level = 0
         fig, ax = plt.subplots(figsize=(8, 10))
         ax.plot(y, z, lw=0.5, c='grey')
         if discrete_intervals is not None:
