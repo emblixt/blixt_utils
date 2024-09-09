@@ -2,7 +2,21 @@ import numpy as np
 from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
 from numpy.random import default_rng
+import typing
+import os
+import sys
+import logging
 
+
+# To test blixt_rp and blixt_utils libraries directly, without installation:
+project_dir = str(os.path.basename(__file__).replace('blixt_rp\\blixt_rp\\core', ''))
+sys.path.append(os.path.join(project_dir, 'blixt_rp'))
+sys.path.append(os.path.join(project_dir, 'blixt_utils'))
+
+from blixt_utils.misc import masks as msks
+from blixt_utils.utils import print_info
+
+logger = logging.getLogger(__name__)
 
 def residuals(x, t, y, target_function=None, weight=None, kwargs=None):
     """
@@ -96,6 +110,151 @@ def depth_trend(_t, _vp_top, _vp_matrix, _b):
     # Vp depth trend often used by Ikon Science
     # _t is TVD
     return _vp_matrix - (_vp_matrix - _vp_top) * np.exp(-1. * _b * _t)
+
+
+def calculate_depth_trend(
+        y: np.ndarray,
+        z: np.ndarray,
+        trend_function: typing.Callable,
+        x0: list,
+        loss: str | None = None,
+        mask: np.ndarray | None = None,
+        discrete_intervals: list | None = None,
+        down_weight_outliers: bool = False,
+        verbose: bool = False,
+        xlabel: str | None = None,
+        ylabel: str | None = None
+) -> list:
+    """
+
+    :param y:
+        data to calculate the depth trend for
+    :param z:
+        depth data
+    :param trend_function:
+        function
+        Function to calculate the residual against
+            residual = target_function(z, *x) - y
+        trend_function takes x as arguments, and depth as independent variable,
+        E.G. for a linear target function:
+        def trend_function(depth, a, b):
+            return a*depth + b
+    :param x0:
+        List of parameters values used initially in the trend_function in the optimization
+    :param loss:
+        Keyword passed on to least_squares() to determine which loss function to use
+    :param mask:
+        boolean numpy array of length N
+        A False value indicates that the data is masked out
+    :param discrete_intervals:
+        list of depth values at which the trend function are allowed discrete jumps
+        Typically the depth of the boundaries between two intervals (formations) in a well.
+    :param down_weight_outliers:
+        If True, a weighting is calculated to minimize the impact of data far away from the median.
+    :param verbose:
+    :param xlabel:
+    :param ylabel:
+
+    :return:
+        list of arrays with optimized parameters,
+        e.g.
+        [ array([a0, b0, ...]), array([a1, b1, ...]), ...]
+        where [a0, b0, ...] are the output from least_squares for the first interval, and so on
+    """
+    if loss is None:
+        loss = 'cauchy'
+    if mask is None:
+        mask = np.array(np.ones(len(y)), dtype=bool)  # All True values -> all data is included
+    verbosity_level = 0
+    fig, ax = None, None
+    results = []
+    # if discrete_intervals is not None:
+    #     # calculate the indexes of where the smoothened log are allowed discrete jumps.
+    #     discrete_indexes = [np.argmin((z[mask] - _z) ** 2) for _z in discrete_intervals]
+
+    if verbose:
+        verbosity_level = 2
+        fig, ax = plt.subplots(figsize=(8, 10))
+        ax.plot(y, z, lw=0.5, c='grey')
+        if discrete_intervals is not None:
+            for _depth in discrete_intervals:
+                ax.axhline(_depth, 0, 1, ls='--')
+
+    def do_the_fit(_mask):
+        weights = None
+
+        # Test if there are NaN values in input data, which needs to be masked out
+        if np.any(np.isnan(y[_mask])):
+            nan_mask = np.isnan(y)
+            _mask = msks.combine_masks([~nan_mask, _mask])
+
+        # Test if there are infinite values in input data, which needs to be masked out
+        if np.any(np.isinf(y[_mask])):
+            inf_mask = np.isnan(y)
+            _mask = msks.combine_masks([~inf_mask, _mask])
+
+        if down_weight_outliers:
+            weights = 1. - np.sqrt((y[_mask] - np.median(y[_mask])) ** 2)
+            weights[weights < 0] = 0.
+
+        try:
+            _res = least_squares(residuals, x0, args=(z[_mask], y[_mask]),
+                                 kwargs={'target_function': trend_function, 'weight': weights},
+                                 loss=loss, verbose=verbosity_level)
+
+            if verbose:
+                info_txt = '  * Success: {}\n  * {}\n  * x0: {}\n  * x: {}'.format(
+                    _res['success'], _res['message'], x0, _res['x']
+                )
+                print_info(info_txt, '', None, verbose, False)
+
+        except ValueError as error:
+            _res = None
+            warn_txt = 'Depth trend could not calculated'
+            print_info(warn_txt, 'warning', logger)
+            print(error)
+            pass
+
+        return _res
+
+    if discrete_intervals is not None:
+        for i in range(len(discrete_intervals) + 1):  # always one more section than boundaries between them
+            if i == 0:  # first section
+                this_depth_mask = msks.create_mask(z, '<', discrete_intervals[i])
+            elif len(discrete_intervals) == i:  # last section
+                this_depth_mask = msks.create_mask(z, '>=', discrete_intervals[-1])
+            else:  # all middle sections
+                this_depth_mask = msks.create_mask(
+                    z,
+                    '><',
+                    [discrete_intervals[i - 1], discrete_intervals[i]])
+                           #  [discrete_intervals[i - 1], discrete_intervals[i] - 1])
+
+            combined_mask = msks.combine_masks([mask, this_depth_mask])
+            res = do_the_fit(combined_mask)
+            results.append(res.x)
+            if verbose:
+                this_depth = np.linspace(
+                    z[this_depth_mask][0],
+                    z[this_depth_mask][-1], 10)
+                ax.plot(y[combined_mask], z[combined_mask])
+                ax.plot(trend_function(this_depth, *res.x), this_depth, c='b')
+    else:
+        res = do_the_fit(mask)
+        results.append(res.x)
+        if verbose:
+            this_depth = np.linspace(z[0], z[-1], 10)
+            ax.plot(y[mask], z[mask])
+            ax.plot(trend_function(this_depth, *res.x), this_depth, c='b')
+
+    if verbose:
+        ax.set_ylim(ax.get_ylim()[::-1])
+        title_txt = 'Depth trend using {}'.format(trend_function.__name__)
+        ax.set_title(title_txt)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+
+    return results
 
 
 def play_with_data_fit():
