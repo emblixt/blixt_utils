@@ -248,3 +248,34 @@ def cycle_colors():
         else:
             yield interval_colors[1]
         i += 1
+
+
+def find_value(x: np.ndarray, x_index: int, snap_to: str = 'exact') -> (float, int):
+    """
+    Returns the value of the array x at index position x_index, when 'snap_to' is 'exact'
+    But can return the nearest min or max, ... or TODO
+    :param x:
+    :param x_index:
+    :param snap_to:
+        'exact': returns (x[x_index], x_index)
+        'nearest min': returns the local minimum closest to x_index and its index
+        'nearest max': returns the local maximum closest to x_index and its index
+    :return:
+        (value, index_position)
+    """
+    from scipy.signal import argrelmax, argrelmin
+    if snap_to == 'exact':
+        return x[x_index], x_index
+    elif snap_to == 'nearest min':
+        local_minima = argrelmin(x)[0]
+        closest_minima = np.argmin(np.sqrt((local_minima - x_index)**2))
+        x_index = local_minima[closest_minima]
+        return x[x_index], x_index
+    elif snap_to == 'nearest max':
+        local_max = argrelmax(x)[0]
+        closest_max = np.argmin(np.sqrt((local_max - x_index)**2))
+        x_index = local_max[closest_max]
+        return x[x_index], x_index
+    else:
+        raise IOError('Unknown snap_to: {}'.format(snap_to))
+
