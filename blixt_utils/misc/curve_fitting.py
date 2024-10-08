@@ -232,7 +232,8 @@ def calculate_depth_trend(
 
             combined_mask = msks.combine_masks([mask, this_depth_mask])
             res = do_the_fit(combined_mask)
-            results.append(res.x)
+            # results.append(res.x)
+            results.append(res)
             if verbose:
                 this_depth = np.linspace(
                     z[this_depth_mask][0],
@@ -241,7 +242,8 @@ def calculate_depth_trend(
                 ax.plot(trend_function(this_depth, *res.x), this_depth, c='b')
     else:
         res = do_the_fit(mask)
-        results.append(res.x)
+        # results.append(res.x)
+        results.append(res)
         if verbose:
             this_depth = np.linspace(z[0], z[-1], 10)
             ax.plot(y[mask], z[mask])

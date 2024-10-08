@@ -20,7 +20,7 @@ class TestCase(unittest.TestCase):
         # x = np.sin(2. * rad) + np.random.rand(100) / 4.
         x = np.sin(4. * rad)
         plt.plot(rad, x)
-        val, i = find_value(x, 33, snap_to='nearest max')
+        val, i = find_value(x, 33, snap_to='nearest_max')
         print(val, i)
         plt.scatter(rad[i], val, marker='x', c='r')
 

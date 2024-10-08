@@ -266,12 +266,12 @@ def find_value(x: np.ndarray, x_index: int, snap_to: str = 'exact') -> (float, i
     from scipy.signal import argrelmax, argrelmin
     if snap_to == 'exact':
         return x[x_index], x_index
-    elif snap_to == 'nearest min':
+    elif snap_to == 'nearest_min':
         local_minima = argrelmin(x)[0]
         closest_minima = np.argmin(np.sqrt((local_minima - x_index)**2))
         x_index = local_minima[closest_minima]
         return x[x_index], x_index
-    elif snap_to == 'nearest max':
+    elif snap_to == 'nearest_max':
         local_max = argrelmax(x)[0]
         closest_max = np.argmin(np.sqrt((local_max - x_index)**2))
         x_index = local_max[closest_max]

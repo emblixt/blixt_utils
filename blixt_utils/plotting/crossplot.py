@@ -285,7 +285,7 @@ def plot(
             c='0.4',
             s=npdata,
             marker=msymbol,
-            edgecolors='none',
+            edgecolor='none',
             alpha=0.3,
             label='_nolegend_'
         )
