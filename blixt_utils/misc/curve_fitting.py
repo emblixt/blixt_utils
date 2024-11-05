@@ -18,6 +18,7 @@ from blixt_utils.utils import print_info
 
 logger = logging.getLogger(__name__)
 
+
 def residuals(x, t, y, target_function=None, weight=None, kwargs=None):
     """
     Returns the residual between the target function and the observed data y
@@ -121,7 +122,9 @@ def calculate_depth_trend(
         mask: np.ndarray | None = None,
         discrete_intervals: list | None = None,
         down_weight_outliers: bool = False,
+        ax=None,
         verbose: bool = False,
+        title: str | None = None,
         xlabel: str | None = None,
         ylabel: str | None = None
 ) -> list:
@@ -151,7 +154,9 @@ def calculate_depth_trend(
         Typically the depth of the boundaries between two intervals (formations) in a well.
     :param down_weight_outliers:
         If True, a weighting is calculated to minimize the impact of data far away from the median.
+    :param ax:
     :param verbose:
+    :param title:
     :param xlabel:
     :param ylabel:
 
@@ -166,7 +171,6 @@ def calculate_depth_trend(
     if mask is None:
         mask = np.array(np.ones(len(y)), dtype=bool)  # All True values -> all data is included
     verbosity_level = 0
-    fig, ax = None, None
     results = []
     # if discrete_intervals is not None:
     #     # calculate the indexes of where the smoothened log are allowed discrete jumps.
@@ -174,8 +178,9 @@ def calculate_depth_trend(
 
     if verbose:
         verbosity_level = 0
-        fig, ax = plt.subplots(figsize=(8, 10))
-        ax.plot(y, z, lw=0.5, c='grey')
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(8, 10))
+        ax.scatter(y, z, c='grey')
         if discrete_intervals is not None:
             for _depth in discrete_intervals:
                 ax.axhline(_depth, 0, 1, ls='--')
@@ -245,16 +250,21 @@ def calculate_depth_trend(
         # results.append(res.x)
         results.append(res)
         if verbose:
-            this_depth = np.linspace(z[0], z[-1], 10)
-            ax.plot(y[mask], z[mask])
+            # this_depth = np.linspace(z[0], z[-1], 10)
+            this_depth = np.linspace(np.nanmin(z), np.nanmax(z), 10)
+            ax.scatter(y[mask], z[mask])
             ax.plot(trend_function(this_depth, *res.x), this_depth, c='b')
 
     if verbose:
-        ax.set_ylim(ax.get_ylim()[::-1])
-        title_txt = 'Depth trend using {}'.format(trend_function.__name__)
-        ax.set_title(title_txt)
+        # ax.set_ylim(ax.get_ylim()[::-1])
+        if title is None:
+            title_txt = 'Trend using {}'.format(trend_function.__name__)
+            ax.set_title(title_txt)
+        else:
+            ax.set_title(title)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
+        ax.grid(True)
 
     return results
 

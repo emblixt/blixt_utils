@@ -1931,7 +1931,8 @@ def write_las(filename, wh, lh, data, overwrite=False):
         for key in list(data.keys()):
             if key == 'depth':
                 continue
-            out += '{0: <20}'.format(
+            # out += '{0: <20}'.format(
+            out += '{:<20.8f}'.format(
                 wh['null'].value if np.isnan(data[key].values[i]) else data[key].values[i]
             )
         out += '\n'
