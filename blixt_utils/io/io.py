@@ -417,6 +417,7 @@ def read_general_ascii_GENERAL(
         separator: str,
         data_begins_on_row: int,
         var_names=None,
+        var_columns=None,
         var_units=None,
         encoding=None
 ):
@@ -435,9 +436,13 @@ def read_general_ascii_GENERAL(
         Either (pythonic) row number of where the variable names can be read in the file (NOTE: must have
         the same number of items and separator as the data for it to work)
         OR
-        list of variables names. Its length must match the number of data columns
+        list of variables names. Its length must match the number of data columns or length of var_columns
 
         If None: generic variable names are created automatically
+    :param var_columns:
+        list
+        list of integers that indicate the column numbers (pythonic) to load for each variable listed in var_names
+        if var_names is an integer, all variables are loaded and this parameter is ignored
     :param var_units:
         int or list
         Either (pythonic) row number of where the units can be read in the file (NOTE: must have
@@ -470,6 +475,7 @@ def read_general_ascii_GENERAL(
     if var_names is None:
         names = ['var_{}'.format(i+1) for i in np.arange(n)]
     elif isinstance(var_names, int):
+        var_columns = None
         with open(filename, 'r', encoding=encoding) as f:
             for i, line in enumerate(f.readlines()):
                 if i == var_names:
@@ -477,6 +483,12 @@ def read_general_ascii_GENERAL(
                     break
     else:
         names = var_names
+    if var_columns is None:
+        var_columns = np.arange(len(names))
+    elif len(names) != len(var_columns):
+        raise IOError('Length of var_names ({}) must be same as length of var_columns'.format(
+            len(names), len(var_columns)))
+
     # Create data container
     data = {key: [] for key in names}
 
@@ -505,8 +517,10 @@ def read_general_ascii_GENERAL(
                     continue
                 if len(_line) != n:
                     break
-                for j, _item in enumerate(_line):
-                    data[names[j]].append(_item)
+                # for j, _item in enumerate(_line):
+                #     data[names[j]].append(_item)
+                for j in range(len(var_columns)):
+                    data[names[j]].append(_line[var_columns[j]])
 
     # TODO
     # Create a 1D xarray.DataArray for each column, with name and unit
@@ -515,23 +529,33 @@ def read_general_ascii_GENERAL(
     return data, units
 
 
-def project_wells_new(filename, working_dir):
+def project_wells_new(filename, working_dir, sheet_name=None):
     """
     Returns a dictionary containing the requested wells from the project excel table
     Avoids using the old "Translate log names" column of the project excel table, and uses
-    direct interpretation based on the translate to symbol '->' in the log type columns 
+    direct interpretation based on the translate to symbol '->' in the log type columns
+
+    ALSO looks in the sheet named 'Well data' (sheet with data not stored in las format, typically checkshots etc.)
+    and adds the data listed there
 
     :param filename:
-        Excel file with well names and las files
+        Excel file with well names and filenames
     :param working_dir:
+    :param sheet_name:
+        str
+        Name of the sheet to read well data from.
+        Default is 'Well logs', which contains well data from las files only
     :return:
         dict
         dictionary with las file names as keys
     """
     result = {}
     selected_wells = get_selected_wells(filename)
-    sheet_name = 'Well logs'
-    table = pd.read_excel(filename, header=1, sheet_name=sheet_name, engine='openpyxl')
+    if sheet_name is None:
+        sheet_name = 'Well logs'
+    # table = pd.read_excel(filename, header=1, sheet_name=sheet_name, engine='openpyxl')
+    xl = pd.ExcelFile(filename)
+    table = xl.parse(sheet_name, header=1)
     if 'translate log names' in [xx.lower() for xx in list(table.keys())]:
         error_txt = \
             "Project table contain specific column for log name translation (Translate log name)." + \
@@ -595,6 +619,60 @@ def project_wells_new(filename, working_dir):
                 print_info(warn_txt, 'warning', logger)
                 raise Warning(warn_txt)
             result[test_file_path(table['las file'][i], working_dir)] = temp_dict
+        # Test if the sheet 'Well data' exists in the project table, and then add the data files listed there
+    if 'Well data' in xl.sheet_names:
+        table = xl.parse('Well data', header=1)
+        for i, ans in enumerate(table['Given well name']):
+            # skip empty rows
+            if not isinstance(ans, str):
+                continue
+            # skip files we have chosen to ignore
+            if table['Use this file'][i].lower() == 'no':
+                continue
+            if fix_well_name(ans) in selected_wells:
+                temp_dict = {'logs': {}, 'columns': {}, 'units': {}}
+                log_dict = {}
+                for key in list(table.keys()):
+                    if (key.lower() == 'filename') or (key.lower() == 'use this file'):
+                        continue
+                    elif ((key.lower() == 'given well name') or (key.lower() == 'note') or
+                          (key.lower() == 'data begins on line') or (key.lower() == 'separator')):
+                        if isinstance(table[key][i], str):
+                            if key.lower() == 'given well name':
+                                value = fix_well_name(table[key][i])
+                            else:
+                                value = table[key][i]
+                            temp_dict[key] = value
+                        elif isinstance(table[key][i], float):
+                            try:
+                                temp_dict[key] = int(table[key][i])
+                            except ValueError:
+                                temp_dict[key] = None  # avoid NaN
+                        else:
+                            temp_dict[key] = None  # avoid NaN
+                    else:
+                        val = table[key][i]
+                        if isnan(val):
+                            continue
+                        else:
+                            segs = val.split(',')  #  val should be a string of 'name, column_number, unit'
+                            log_dict['test'] = val
+                            temp_dict['logs'][segs[0]] = key
+                            temp_dict['columns'][segs[0]] = int(segs[1])
+                            temp_dict['units'][segs[0]] = segs[2]
+                    # temp_dict['logs'] = log_dict
+                # avoid file names which aren't correctly given as strings
+                if not isinstance(table['filename'][i], str):
+                    temp_file = False
+                else:
+                    temp_file = test_file_path(table['filename'][i], working_dir)
+                if temp_file is False:
+                    warn_txt = 'Warning, las file {} for well {} does not exist'.format(
+                        table['las file'][i], ans)
+                    print_info(warn_txt, 'warning', logger)
+                    raise Warning(warn_txt)
+                result[test_file_path(table['filename'][i], working_dir)] = temp_dict
+
     return result
 
                 

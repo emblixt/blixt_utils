@@ -15,7 +15,7 @@ files = {
     'las_file1':
         [os.path.join(test_file_dir, "L-30.las"), 'space', 53,
          ["DEPTH", "CALD", "CALS", "DEPT", "DRHO", "DT", "GRD", "GRS", "ILD", "ILM", "LL8", "NPHILS", "NPHISS",
-          "RHOB", "SP"],
+          "RHOB", "SP"], None,
          ["FT",  "IN",  "IN", "FT", "G/CC",  "US/F", "GAPI", "GAPI",  "OHMM", "OHMM", "OHMM", "V/V", "V/V",
           "G/CC", "MV"]
          ],
@@ -24,24 +24,33 @@ files = {
     'rokdoc_tops_file':
         [os.path.join(test_file_dir, "RokDocTops.csv"),';', 5,
          4,
+         None,
          ['', '', 'm', 'm', 'ms', 'm', 'm', 'm']],
     'another_tops_file':
         [os.path.join(test_file_dir, "strat_litho_wellbore.csv"), ',', 1,
          0,
+         None,
          None],
     'well_path_file1':
         ["C:\\Users\\marte\\Downloads\\25_2_6___wellpath.txt", 'space', 1,
+         None,
          None,
          None],
     'well_path_file2':
         [os.path.join(test_file_dir, "Well C wellpath.txt"), 'tab', 1,
          0,
+         None,
          ['', '', 'm', 'm', 'm', 'm', 'deg', 'deg', 'm', 'm', '']],
     'checkshot_file':
         [os.path.join(test_file_dir, "Petrel_checkshots.ascii"), 'space', 15,
          ['X', 'Y', 'Z', 'TWT picked', 'MD', 'Well', 'Average velocity', 'Interval velocity', 'TWT'],
-         ['m', 'm', 'm', 'ms', 'm', '', 'm/s', 'm/s', 'ms']
-         ]
+         None,
+         ['m', 'm', 'm', 'ms', 'm', '', 'm/s', 'm/s', 'ms']],
+    'checkshot_file_again':
+        [os.path.join(test_file_dir, "Petrel_checkshots.ascii"), 'space', 15,
+         ['X', 'TWT picked', 'Well'],
+         [0, 3, 5],
+         ['m', 'ms', '']]
 }
 
 
@@ -51,11 +60,18 @@ class IOTestCase(unittest.TestCase):
         for _name in list(files.keys()):
             if _name in ['petrel_well_tops_file', 'well_path_file1']:
                 continue
-            print(_name)
+            print('\n', _name)
             data, units = (
-                read_file(files[_name][0], files[_name][1], files[_name][2], files[_name][3],  files[_name][4], encoding='utf-8-sig'))
-            print(list(data.keys())[0], data[list(data.keys())[0]][:10])
-            print(units)
+                read_file(
+                    files[_name][0],
+                    files[_name][1],
+                    files[_name][2],
+                    var_names=files[_name][3],
+                    var_columns=files[_name][4],
+                    var_units=files[_name][5],
+                    encoding='utf-8-sig'))
+            print('  ', list(data.keys())[0], data[list(data.keys())[0]][:10])
+            print('  ', units)
             self.assertIsInstance(data, dict, 'Test data {}'.format(_name))
             self.assertIsInstance(units, dict, 'Test units {}'.format(_name))
 
