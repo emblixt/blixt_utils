@@ -420,7 +420,7 @@ def read_general_ascii_GENERAL(
         var_columns=None,
         var_units=None,
         encoding=None
-):
+) -> (dict, dict):
     """
     General ASCII file reader that isn't specific to any type of data.
     It requires that the data are arranged as rows and columns,
@@ -509,6 +509,7 @@ def read_general_ascii_GENERAL(
         units[name] = _units[i]
 
     # Now extract the data
+    # print('XXX2', filename, len(var_columns), len(names))
     with open(filename, 'r', encoding=encoding) as f:
         for i, line in enumerate(f.readlines()):
             if i >= data_begins_on_row:
@@ -521,6 +522,10 @@ def read_general_ascii_GENERAL(
                 #     data[names[j]].append(_item)
                 for j in range(len(var_columns)):
                     data[names[j]].append(_line[var_columns[j]])
+                    # try:
+                    #     data[names[j]].append(_line[var_columns[j]])
+                    # except IndexError:
+                    #     print('XXX2 ', j, len(_line), names[j], list(data.keys()))
 
     # TODO
     # Create a 1D xarray.DataArray for each column, with name and unit
@@ -655,10 +660,11 @@ def project_wells_new(filename, working_dir, sheet_name=None):
                         if isnan(val):
                             continue
                         else:
-                            segs = val.split(',')  #  val should be a string of 'name, column_number, unit'
+                            #  val should be a string of 'name, column_number, unit', where the column number begins at 1
+                            segs = val.split(',')
                             log_dict['test'] = val
                             temp_dict['logs'][segs[0]] = key
-                            temp_dict['columns'][segs[0]] = int(segs[1])
+                            temp_dict['columns'][segs[0]] = int(segs[1]) - 1  # from non-pythonic to pythonic counting!
                             temp_dict['units'][segs[0]] = segs[2]
                     # temp_dict['logs'] = log_dict
                 # avoid file names which aren't correctly given as strings
@@ -2566,6 +2572,12 @@ def _return_valid_line(
 
     return _data
 
+
+def filetype(filename):
+    if os.path.isdir(filename):
+        return 'folder'
+    else:
+        return os.path.splitext(filename)[-1].lower().replace('.', '')
 
 def example_parsing_webpage():
     """

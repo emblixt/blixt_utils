@@ -61,20 +61,37 @@ class IOTestCase(unittest.TestCase):
             if _name in ['petrel_well_tops_file', 'well_path_file1']:
                 continue
             print('\n', _name)
-            data, units = (
-                read_file(
+            data, units = read_file(
                     files[_name][0],
                     files[_name][1],
                     files[_name][2],
                     var_names=files[_name][3],
                     var_columns=files[_name][4],
                     var_units=files[_name][5],
-                    encoding='utf-8-sig'))
+                    encoding='utf-8-sig')
             print('  ', list(data.keys())[0], data[list(data.keys())[0]][:10])
             print('  ', units)
             self.assertIsInstance(data, dict, 'Test data {}'.format(_name))
             self.assertIsInstance(units, dict, 'Test units {}'.format(_name))
 
+    def test_log_curve_read_file(self):
+        from blixt_rp.core.log_curve_new import read_general_ascii as lc_read_file, LogCurve
+        for _name in list(files.keys()):
+            if _name in ['petrel_well_tops_file', 'well_path_file1']:
+                continue
+            print('\n', _name)
+
+            log_curves = lc_read_file(
+                    files[_name][0],
+                    files[_name][1],
+                    files[_name][2],
+                    var_names=files[_name][3],
+                    var_columns=files[_name][4],
+                    var_units=files[_name][5],
+                    encoding='utf-8-sig')
+            if log_curves is not None:
+                for _key in list(log_curves.keys()):
+                    self.assertIsInstance(log_curves[_key], LogCurve, '{} is not a LogCurve'.format(_key))
 
     def test_get_las(self):
         fname = files['las_file1'][0]
@@ -95,6 +112,16 @@ class IOTestCase(unittest.TestCase):
 
         self.assertTrue(len(names) == len(units))
         self.assertIsInstance(data_row, int)
+
+    def test_project_wells_new(self):
+        project_table = test_file_dir.replace('test_data', 'excels\\project_table_new.xlsx')
+        result = project_wells_new(project_table, test_file_dir.replace('test_data', ''))
+        for _key in list(result.keys()):
+            print(_key)
+            for _i in list(result[_key].keys()):
+                print(' -', _i)
+                print('  -', result[_key][_i])
+        self.assertIsInstance(result, dict)
 
 
     def test1(self):
