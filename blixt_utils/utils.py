@@ -258,8 +258,9 @@ def find_value(x: np.ndarray, x_index: int, snap_to: str = 'exact') -> (float, i
     :param x_index:
     :param snap_to:
         'exact': returns (x[x_index], x_index)
-        'nearest min': returns the local minimum closest to x_index and its index
-        'nearest max': returns the local maximum closest to x_index and its index
+        'nearest_min': returns the local minimum closest to x_index and its index
+        'nearest_max': returns the local maximum closest to x_index and its index
+        'nearest_extreme': returns the local extreme closest to x_index and its index
     :return:
         (value, index_position)
     """
@@ -275,6 +276,17 @@ def find_value(x: np.ndarray, x_index: int, snap_to: str = 'exact') -> (float, i
         local_max = argrelmax(x)[0]
         closest_max = np.argmin(np.sqrt((local_max - x_index)**2))
         x_index = local_max[closest_max]
+        return x[x_index], x_index
+    elif snap_to == 'nearest_extreme':
+        local_minima = argrelmin(x)[0]
+        local_max = argrelmax(x)[0]
+        closest_minima = np.argmin(np.sqrt((local_minima - x_index)**2))
+        closest_max = np.argmin(np.sqrt((local_max - x_index) ** 2))
+        print(x_index, local_minima[closest_minima], local_max[closest_max])
+        if abs(x_index - local_minima[closest_minima]) < abs(x_index - local_max[closest_max]):
+            x_index = local_minima[closest_minima]
+        else:
+            x_index = local_max[closest_max]
         return x[x_index], x_index
     else:
         raise IOError('Unknown snap_to: {}'.format(snap_to))

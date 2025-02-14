@@ -18,11 +18,24 @@ class TestCase(unittest.TestCase):
         from blixt_utils.utils import find_value
         rad = np.linspace(-1 * np.pi, np.pi, 100)
         # x = np.sin(2. * rad) + np.random.rand(100) / 4.
+        starting_point = 33
         x = np.sin(4. * rad)
         plt.plot(rad, x)
-        val, i = find_value(x, 33, snap_to='nearest_max')
-        print(val, i)
-        plt.scatter(rad[i], val, marker='x', c='r')
+        plt.scatter(rad[starting_point], x[starting_point], marker='o', c='b')
+        val, i = find_value(x, starting_point, snap_to='nearest_max')
+        plt.scatter(rad[i], val, marker='^', c='b')
+        val, i = find_value(x, starting_point, snap_to='nearest_min')
+        plt.scatter(rad[i], val, marker='v', c='b')
+
+        starting_point = 50
+        plt.scatter(rad[starting_point], x[starting_point], marker='o', c='g')
+        val, i = find_value(x, starting_point, snap_to='nearest_extreme')
+        plt.scatter(rad[i], val, marker='v', c='g')
+
+        starting_point = 65
+        plt.scatter(rad[starting_point], x[starting_point], marker='o', c='r')
+        val, i = find_value(x, starting_point, snap_to='nearest_extreme')
+        plt.scatter(rad[i], val, marker='v', c='r')
 
         plt.show()
         self.assertTrue(True)
