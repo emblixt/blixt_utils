@@ -1,4 +1,5 @@
 from bokeh.plotting import figure, show
+from bokeh.models import Line
 from bokeh.layouts import row, column
 from bokeh.models import Slider, ColorPicker
 from bokeh.io import output_file
@@ -66,3 +67,6 @@ class BokehPlotter:
         output_file(output_filename)
         show(plot)
 
+
+if __name__ == '__main__':
+    first_step_one()
