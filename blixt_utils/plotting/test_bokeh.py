@@ -4,6 +4,18 @@ from bokeh.layouts import row, column
 from bokeh.models import Slider, ColorPicker
 from bokeh.io import output_file
 from bokeh.layouts import gridplot
+from bokeh.models import PanTool,WheelZoomTool, ResetTool, SaveTool, CrosshairTool, HoverTool
+
+from AkerBP_PL1099.NordenskioldAVO import plot_CGG22M05_traces_above_Nordenskiold
+
+tools = [
+    PanTool(),
+    WheelZoomTool(),
+    HoverTool(),
+    CrosshairTool(),
+    ResetTool(),
+    SaveTool()
+]
 
 output_file('C:\\Users\emb\Documents\plot.html')
 
@@ -38,14 +50,14 @@ class BokehPlotter:
         self.width = width
         self.height = height
 
-    def create_line_plot(self, x, y, title="Line Plot", x_label="X", y_label="Y"):
+    def create_line_plot(self, _x, y, title="Line Plot", x_label="X", y_label="Y"):
         plot = figure(width=self.width, height=self.height, title=title, x_axis_label=x_label, y_axis_label=y_label)
-        plot.line(x, y, line_width=2, color='navy')
+        plot.line(_x, y, line_width=2, color='navy')
         return plot
 
-    def create_scatter_plot(self, x, y, title="Scatter Plot", x_label="X", y_label="Y"):
+    def create_scatter_plot(self, _x, y, title="Scatter Plot", x_label="X", y_label="Y"):
         plot = figure(width=self.width, height=self.height, title=title, x_axis_label=x_label, y_axis_label=y_label)
-        plot.circle(x, y, size=8, color='firebrick', alpha=0.5)
+        plot.circle(_x, y, size=8, color='firebrick', alpha=0.5)
         return plot
 
     def create_two_column_plot(self, data_list, titles, x_labels, y_labels):
@@ -63,10 +75,36 @@ class BokehPlotter:
         grid = gridplot(plots, ncols=2)
         return grid
 
+    def linked_plots(self):
+        _x = list(range(11))
+        _y0 = _x
+        _y1 = [10 - xx for xx in _x]
+        _y2 = [abs(xx - 5) for xx in _x]
+
+        # create a new plot
+        s1 = figure(width=250, height=250, title=None, tools=tools)
+        s1.scatter(_x, _y0, size=10, color="navy", alpha=0.5)
+
+        # create a new plot and share both ranges
+        # s2 = figure(width=250, height=250, x_range=s1.x_range, y_range=s1.y_range, title=None, tools=tools)
+        s2 = figure(width=250, height=250, x_range=s1.x_range, title=None, tools=tools)
+        s2.scatter(_x, _y1, size=10, color="firebrick", alpha=0.5, marker='triangle')
+        s2.y_range = s1.y_range
+
+        # create a new plot and share only one range
+        s3 = figure(width=250, height=250, x_range=s1.x_range, title=None)
+        s3.scatter(_x, _y2, size=10, color="olive", alpha=0.5, marker='square')
+
+        p = gridplot([[s1, s2, s3]], toolbar_location='right', merge_tools=True)
+        return p
+
     def show_plot(self, plot, output_filename="bokeh_plot.html"):
         output_file(output_filename)
         show(plot)
 
 
 if __name__ == '__main__':
-    first_step_one()
+    # first_step_one()
+    plotter = BokehPlotter()
+    lps = plotter.linked_plots()
+    plotter.show_plot(lps)

@@ -11,7 +11,7 @@ tools = [
     PanTool(),
     WheelZoomTool(),
     HoverTool(),
-    CrosshairTool(),
+    # CrosshairTool(),
     ResetTool(),
     SaveTool()
 ]
@@ -89,18 +89,54 @@ class LogPlotter:
         self._columns.append(_column)
 
     @property
-    def column_data_source(self):
-        _dict = None
-        for i, _column in enumerate(self.columns):
-            if i == 0:
-                _dict = _column.column_data_source
-            else:
-                _dict.update(_column.column_data_source)
-        return _dict
-
+    def column_width(self):
+        n_cols = sum([_column.rel_width for _column in self.columns])
+        return int(self.width / n_cols)
 
     def figure(self):
-        return row([_column.figure() for _column in self.columns])
+        children = []
+        _w = Span(dimension="width", line_dash="dashed", line_width=1)
+        _h = Span(dimension="height", line_dash="dashed", line_width=0)
+        for i, _column in enumerate(self.columns):
+            extra_axes = []
+            _p = figure(width=int(_column.rel_width * self.column_width),
+                        height=int(self.height * (1. - _column.rel_header_height)),
+                        tools=tools)  #, active_inspect=None)
+            _p.toolbar.logo = None
+            _p.add_tools(CrosshairTool(overlay=[_w, _h]))
+            _p.x_range = Range1d(*_column.lines[0].x_range)
+            legend_names = get_legend_names(_column.lines)
+            for j, _line in enumerate(_column.lines):
+                _legend_label = '{:.1f} : {} : {:.1f}'.format(_line.x_range[0], legend_names[j], _line.x_range[1])
+                if j == 0:
+                    _p.line(_line.x, _line.y, legend_label=_legend_label, **_line.line_args)
+                else:
+                    _p.extra_x_ranges[legend_names[j]] = Range1d(*_line.x_range)
+                    _p.line(_line.x, _line.y, **_line.line_args, legend_label=_legend_label,
+                           x_range_name=legend_names[j])
+                    extra_axes.append(LinearAxis(axis_label=legend_names[j], x_range_name=legend_names[j]))
+            if i == 0:
+                _p.y_range.flipped = True
+                _p.xaxis.visible = False
+            else:
+                # _p.y_range = children[0].y_range
+                _p.xaxis.visible = False
+                _p.yaxis.visible = False
+
+            _p.legend.click_policy = 'hide'
+            _p.add_layout(_p.legend[0], 'above')
+            _p.legend.label_text_font_size = '8pt'
+
+            children.append(_p)
+
+        # TODO
+        # That this works means that I can separate out the creation of each column figure to a function / method
+        for i, child in enumerate(children):
+            if i > 0:
+                child.y_range = children[0].y_range
+
+        return gridplot([[_child for _child in children]],
+                        toolbar_location='right', merge_tools=True)
 
 
 
@@ -110,21 +146,15 @@ class LogColumn:
     """
 
     def __init__(self,
-                 tag: str,
-                 parent: LogPlotter | None = None,
+                 name: str,
                  rel_width: float = 1.,
                  rel_header_height: float = 0.1,
-                 lines: list | None = None,
-                 y_range: Range1d | None =  None,
-                 show_tools: bool = False
+                 lines: list | None = None
                  ):
         """
-        :param tag:
+        :param name:
             str
             Unique string that separates the different columns from each other
-        :param parent:
-            LogPlotter
-            Parent log plotter that should contain this column plot
         :param rel_width:
             float
             Width relative to the width of one of N columns of equal width
@@ -145,52 +175,11 @@ class LogColumn:
         self._lines = lines
         self._rel_width = rel_width
         self._rel_header_height = rel_header_height
-        self._y_range = y_range
-        if parent is None:
-            parent = LogPlotter()
-        self._parent = parent
-        self._tag = tag
-
-
-        extra_axes = []
-        if show_tools:
-            _tools = tools
-        else:
-            _tools = ''
-        p = figure(width=int(self._parent.width * self._rel_width),
-                   height=int(self._parent.height * (1. - self._rel_header_height)),
-                   tools=_tools, active_inspect=None)
-        p.toolbar.logo = None
-        p.x_range = Range1d(*self.lines[0].x_range)
-
-        legend_names = get_legend_names(self.lines)
-
-        for i, _line in enumerate(self.lines):
-            _legend_label = '{:.1f} : {} : {:.1f}'.format(_line.x_range[0], legend_names[i], _line.x_range[1])
-            if i == 0:
-                p.line(_line.x, _line.y, legend_label=_legend_label, **_line.line_args)
-            else:
-                p.extra_x_ranges[legend_names[i]] = Range1d(*_line.x_range)
-                p.line(_line.x, _line.y, **_line.line_args, legend_label=_legend_label,
-                       x_range_name=legend_names[i])
-                extra_axes.append(LinearAxis(axis_label=legend_names[i], x_range_name=legend_names[i]))
-
-        if self.y_range is None:
-            p.y_range.flipped = True
-        elif isinstance(self.y_range, Range1d):
-            p.y_range = self.y_range
-
-        p.legend.click_policy = 'hide'
-        p.add_layout(p.legend[0], 'above')
-        p.legend.label_text_font_size='8pt'
-        self._p = p
-
-    def figure(self):
-        return self._p
+        self._name = name
 
     @property
-    def tag(self):
-        return self._tag
+    def name(self):
+        return self._name
 
     @property
     def rel_width(self):
@@ -223,19 +212,6 @@ class LogColumn:
         if not isinstance(_line, Line):
             raise IOError('{} is not a Line object'.format(_line))
         self._lines.append(_line)
-
-    @property
-    def y_range(self):
-        return self._y_range
-
-    @property
-    def column_data_source(self):
-        _dict = {}
-        for i, _line in enumerate(self.lines):
-            _dict['{}x{}'.format(self.tag, i)] = _line.x
-            _dict['{}y{}'.format(self.tag, i)] = _line.y
-        return _dict
-
 
 
 class Line:

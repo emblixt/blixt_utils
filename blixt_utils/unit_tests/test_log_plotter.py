@@ -33,22 +33,21 @@ class SetUp(unittest.TestCase):
         line1 = Line(x=None, y=None, line_args={'legend_label':"D1", 'color':"blue", 'line_width':2})
         line2 = Line(x=np.random.normal(10., 1., 500), y=np.linspace(1000., 2000., 500), line_args={'legend_label':"D2", 'color':"red", 'line_width':1})
         line3 = Line(x=np.random.normal(100., 1., 500), y=np.linspace(1000., 2000., 500), line_args={'legend_label':"D3", 'color':"yellow", 'line_width':2})
-        c1 = LogColumn('c1', parent=lp, lines=[line1, line2, line3], y_range=Range1d(2000., 1000.))
-        show(c1.figure())
+        c1 = LogColumn('c1',  lines=[line1, line2, line3])
+        lp.columns = [c1]
+        show(lp.figure())
         # print(inspect.getmembers(p.children[0].y_range))
         self.assertTrue(True)
 
     def test_two_column_plot(self):
-        lp = LogPlotter()
+        lp = LogPlotter(width=800, height=1000)
         line1 = Line(x=None, y=None, line_args={'legend_label': "D1", 'color': "blue", 'line_width': 2})
         line2 = Line(x=np.random.normal(10., 1., 500), y=np.linspace(1000., 2000., 500),
                      line_args={'legend_label': "D2", 'color': "red", 'line_width': 1})
         line3 = Line(x=np.random.normal(100., 1., 500), y=np.linspace(1000., 2000., 500),
                      line_args={'legend_label': "D3", 'color': "yellow", 'line_width': 2})
-        c2 = LogColumn('c2', parent=lp, lines=[line1, line2])
-        c1 = LogColumn('c1', parent=lp, lines=[line1, line2, line3],
-                       y_range=c2.y_range, show_tools=True)
+        c2 = LogColumn('c2',  lines=[line1, line2])
+        c1 = LogColumn('c1',  lines=[line1, line2, line3], rel_width=2)
         lp.columns = [c2, c1]
         show(lp.figure())
-        print(list(lp.column_data_source.keys()))
         self.assertTrue(True)
