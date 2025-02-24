@@ -1,5 +1,5 @@
 from bokeh.plotting import figure, show
-from bokeh.models import Line
+from bokeh.models import Line, NumberEditor
 from bokeh.layouts import row, column
 from bokeh.models import Slider, ColorPicker
 from bokeh.io import output_file
@@ -36,6 +36,38 @@ def first_step_one():
 
     # show the results
     show(p)
+
+def test_callback():
+    from bokeh.models import ColumnDataSource, DataTable, Span, CustomJS, TableColumn
+
+    source = ColumnDataSource(data={'x': [1, 2, 3], 'y': [4, 5, 6]})
+    table_columns = [
+        TableColumn(field='x', title='X',
+                    editor=NumberEditor()),
+        TableColumn(field='y', title='Y',
+                    editor=NumberEditor())
+        ]
+
+    p = figure()
+    p.line([0, 10], [0, 10])
+    span = Span(location=0, dimension='width', line_color='red', line_dash='dashed')
+
+    # source.data.update({'x': [4, 5, 6], 'y': [7, 8, 9]})
+
+    callback = CustomJS(args=dict(source=source, span=span), code="""
+        const data = source.data;
+        console.log('Data changed:', data);
+        span.location = data['y'][0];  
+        source.change.emit(); // Update span location based on first row of 'y' column
+    """)
+    source.js_on_change('patching', callback)
+
+    data_table = DataTable(source=source, columns=table_columns, editable=True)  # Define your columns
+
+    p.add_layout(span)
+    show(column(p, data_table))
+
+
 
 
 class BokehPlotter:
@@ -105,6 +137,7 @@ class BokehPlotter:
 
 if __name__ == '__main__':
     # first_step_one()
-    plotter = BokehPlotter()
-    lps = plotter.linked_plots()
-    plotter.show_plot(lps)
+    # plotter = BokehPlotter()
+    # lps = plotter.linked_plots()
+    # plotter.show_plot(lps)
+    test_callback()
