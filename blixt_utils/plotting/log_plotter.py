@@ -1,16 +1,23 @@
+import matplotlib as mpl
+from copy import deepcopy
+
 import bokeh.plotting
 import numpy as np
+from openpyxl.styles.builtins import title
 from pandas import DataFrame
+from typing import Literal
 from IPython.core.magics.code import extract_code_ranges
 from bokeh.plotting import figure, show
-from bokeh.layouts import row, column
+from bokeh.layouts import row, column, Spacer
 from bokeh.models import (Slider, ColorPicker, Range1d, LinearAxis, Span, Legend, ColumnDataSource, Text,
-                          CustomJS)
-from bokeh.models import PanTool,WheelZoomTool, ResetTool, SaveTool, CrosshairTool, HoverTool
+                          CustomJS, LinearColorMapper)
+from bokeh.models import PanTool,WheelZoomTool, ResetTool, SaveTool, CrosshairTool, HoverTool, ColorBar, LogColorMapper
 from bokeh.models import (DataTable, NumberEditor, SelectEditor, StringEditor, StringFormatter,
                           IntEditor, TableColumn, CheckboxEditor)
 from bokeh.io import output_file
 from bokeh.layouts import gridplot
+
+import bruges
 
 # from blixt_utils.misc.templates import necessary_keys
 
@@ -23,25 +30,7 @@ tools = [
     SaveTool()
 ]
 
-def get_legend_names(_lines: list) -> list:
-    """
-
-    :param _lines:
-        list
-        List of Line objects
-    :return:
-        list
-        List of legend names
-    """
-    _legend_names = []
-    for i, _line in enumerate(_lines):
-        _name = None
-        if 'legend_label' in list(_line.line_args.keys()):
-            _name = _line.line_args.pop('legend_label')
-        if _name is None:
-            _name = 'D{}'.format(i)
-        _legend_names.append(_name)
-    return _legend_names
+test_data_length = 1000
 
 
 class LogPlotter:
@@ -132,8 +121,9 @@ class LogColumn:
     def __init__(self,
                  name: str,
                  rel_width: float = 1.,
-                 rel_header_height: float = 0.1,
-                 lines: list | None = None
+                 rel_header_height: float = 0.,
+                 lines: list | None = None,
+                 seismic_traces: list | None = None
                  ):
         """
         :param name:
@@ -148,15 +138,17 @@ class LogColumn:
             Height of header relative to the total height
         :param lines:
             list
-            A list of dictionaries, where each dictionary represent a line (a log) that should be added to this column
-            Each dictionary should contain the following keys; 'x', 'y', 'legend_label', 'color', 'line_width'
-        :param y_range:
-            Range1d
-            Determines the y range of the column
+            A list of Line objects
+        :param seismic_traces:
+            list
+            A list of SeismicTraces objects
         """
         if lines is None:
             lines = []
         self._lines = lines
+        if seismic_traces is None:
+            seismic_traces = []
+        self._seismic_traces = seismic_traces
         self._rel_width = rel_width
         self._rel_header_height = rel_header_height
         self._name = name
@@ -192,10 +184,26 @@ class LogColumn:
                 raise IOError('{} is not a Line object'.format(_line))
         self._lines = l
 
-    def line(self, _line):
+    def add_line(self, _line):
         if not isinstance(_line, Line):
             raise IOError('{} is not a Line object'.format(_line))
         self._lines.append(_line)
+
+    @property
+    def seismic_traces(self):
+        return self._seismic_traces
+
+    @seismic_traces.setter
+    def seismic_traces(self, l: list):
+        for _st in l:
+            if not isinstance(_st, SeismicTraces):
+                raise IOError('{} is not a SeismicTraces object'.format(_st))
+        self._seismic_traces = l
+
+    def add_seismic_traces(self, _st):
+        if not isinstance(_st, SeismicTraces):
+            raise IOError('{} is not a SeismicTraces object'.format(_st))
+        self._lines.append(_st)
 
 
 class Line:
@@ -217,7 +225,7 @@ class Line:
             Dictionary with arguments that goes to the bokeh.figure.line() method
         """
         if x is None:
-            x = np. random.normal(0., 1., 1000)
+            x = np. random.normal(0., 1., test_data_length)
         self._x = x
         if y is None:
             y = np.linspace(500, 3500, len(self._x))
@@ -258,6 +266,117 @@ class Line:
         return _min, _max
 
 
+class SeismicTraces:
+    """
+    Simple class that contains N number of seismic traces,
+    Each trace must have the same depth/time dimension
+
+    """
+    def __init__(self,
+                 x: np.ndarray | None = None,
+                 y: np.ndarray | None = None,
+                 traces: np.ndarray | None = None,
+                 trace_type: Literal['avo', 'eei', 'index'] | None = None
+                 ):
+        """
+
+        :param x:
+            np.ndarray of length M with values in the x direction
+            Contains incidence angles when trace_type is 'avo',
+            Chi angles when trace_type is 'eei', and index when trace_type is 'index'
+        :param y:
+            Numpy array of depth/time values, length N
+        :param traces:
+            np.ndarray of size MxN, contains M number of seismic traces, each of length N
+        :param trace_type:
+            string that describes the type of seismic variation in the x direction
+            'avo': Incidence angle (AVO)
+            'eei': Chi angle (Extended Elastic Impedance)
+            'index': index along an Inline, Xline or arbitrary seismic line
+        """
+        if x is None:
+            x = np.linspace(0,35, 128)
+        self._x = x
+        if y is None:
+            y = np.linspace(500, 3500, test_data_length)
+        self._y = y
+        if trace_type is None:
+            trace_type = 'avo'
+        self._trace_type = trace_type
+
+        if traces is None:
+            _synts = SyntheticTraces(trace_length=test_data_length, n_traces=len(x))
+            traces = _synts.get_traces(simulate_avo=self._trace_type=='avo')
+        self._traces = traces
+
+    @property
+    def x(self):
+        return self._x
+
+    @property
+    def y(self):
+        return self._y
+
+    @property
+    def trace_type(self):
+        return self._trace_type
+
+    @property
+    def traces(self):
+        return self._traces
+
+class SyntheticTraces:
+    def __init__(self,
+                 trace_length:int | None = None,
+                 dt: float | None = None,
+                 n_traces: int | None = None,
+                 n_reflectors: int | None = None,
+                 seed: int | None = None):
+
+        if trace_length is None:
+            trace_length = 3000
+        if dt is None:
+            dt = 0.001  # seconds
+        if n_traces is None:
+            n_traces = 128
+        if n_reflectors is None:
+            n_reflectors = 3
+
+        x = np.linspace(0, n_traces - 1, n_traces)
+        y = np.linspace(0, trace_length - 1, trace_length)
+        traces = np.zeros((n_traces, trace_length))
+
+        self.trace_length = trace_length
+        self.dt = dt
+        self.n_traces = n_traces
+        self.seed = seed
+        self.n_reflectors = n_reflectors
+        self.rng = np.random.default_rng(self.seed)
+
+        self.w_length = 0.082  # Ricker wavelength in seconds
+        self.f0 = 25.  # Hz
+
+        self.traces = traces
+        self.wavelet = None
+
+    def get_traces(self, simulate_avo=False) -> np.ndarray:
+        idx_refl = self.rng.integers(100, self.trace_length, self.n_reflectors)
+        refl = np.zeros(self.trace_length)
+        refl[idx_refl] = 2 * self.rng.random(self.n_reflectors) - 1
+
+        # Convolve reflectivity model with a Ricker wavelet '''
+        this_wavelet = bruges.filters.wavelets.ricker(self.w_length, self.dt, self.f0)
+        self.wavelet = this_wavelet.amplitude
+        this_trace = np.convolve(refl, self.wavelet, mode='same')
+        for i in range(self.traces.shape[0]):
+            if simulate_avo:
+                _refl = deepcopy(refl)
+                _refl[idx_refl[1]] = _refl[idx_refl[1]] * i*2/(self.traces.shape[0] - 1)
+                this_trace=  np.convolve(_refl, self.wavelet, mode='same')
+            self.traces[i,:] = this_trace
+
+        return self.traces
+
 def create_column_figure(_column: LogColumn,
                          _w: Span | None,
                          _h: Span | None,
@@ -268,6 +387,7 @@ def create_column_figure(_column: LogColumn,
                          _y_axis_visible: bool,
                          _tools: list | None) -> bokeh.plotting.figure:
     """
+    Creates a figure for one column
 
     :param _column:
         LogColumn
@@ -308,20 +428,34 @@ def create_column_figure(_column: LogColumn,
                 height=int(_height * (1. - _column.rel_header_height)),
                 x_axis_location = 'above',
                 tools=_tools)  # , active_inspect=None)
+    # style the plot
     _p.toolbar.logo = None
     _p.add_tools(CrosshairTool(overlay=[_w, _h]))
-    _p.x_range = Range1d(*_column.lines[0].x_range)
+    hover = _p.select(dict(type=HoverTool))
+    hover.tooltips = [("(x,y)", "($x, $y)"), ("Value", "@value")]
 
+    if len(_column.lines) > 0:
+        _p.x_range = Range1d(*_column.lines[0].x_range)
+
+    _p.xaxis.visible = _x_axis_visible
+    _p.xaxis.axis_label_text_font_size='10px'
+    _p.xaxis.major_label_text_font_size='10px'
+    _p.xaxis.axis_label_standoff=0
+
+    # Add lines with log curves, if they exist in this column
     add_lines(_p, _column)
 
+    # Add seismic, if it exists in this column
+    add_seismic_traces(_p, _column, 0)
+
     _p.y_range.flipped = _y_range_flipped
-    _p.xaxis.visible = _x_axis_visible
     _p.yaxis.visible = _y_axis_visible
 
-    _p.legend.click_policy = 'hide'
-    # _p.add_layout(_p.legend[0], 'above')
-    _p.legend.location = 'top_right'
-    _p.legend.label_text_font_size = '8pt'
+    # add legends if they exists
+    if len(_p.legend) > 0:
+        _p.legend.click_policy = 'hide'
+        _p.legend.location = 'top_right'
+        _p.legend.label_text_font_size = '8pt'
 
     return _p
 
@@ -335,21 +469,61 @@ def add_lines(_p: bokeh.plotting.figure,
     :param _column:
     :return:
     """
-    legend_names = get_legend_names(_column.lines)
     extra_axes = []
     for j, _line in enumerate(_column.lines):
         # Create new legend that includes the range of the data
-        _legend_label = '{:.1f} : {} : {:.1f}'.format(_line.x_range[0], legend_names[j], _line.x_range[1])
+        # _legend_label = '{:.1f} : {} : {:.1f}'.format(_line.x_range[0], legend_names[j], _line.x_range[1])
+        _legend_label = _line.line_args['legend_label']
         if j == 0:
-            _p.line(_line.x, _line.y, legend_label=_legend_label, **_line.line_args)
+            _p.line(_line.x, _line.y,  **_line.line_args)
+            _p.xaxis.axis_label = _legend_label
         else:
-            _p.extra_x_ranges[legend_names[j]] = Range1d(*_line.x_range)
-            _p.line(_line.x, _line.y, **_line.line_args, legend_label=_legend_label,
-                    x_range_name=legend_names[j])
-            this_ax = LinearAxis(axis_label=legend_names[j], x_range_name=legend_names[j], axis_label_text_font_size='10px')
+            _p.extra_x_ranges[_legend_label] = Range1d(*_line.x_range)
+            _p.line(_line.x, _line.y, **_line.line_args,
+                    x_range_name=_legend_label)
+            this_ax = LinearAxis(axis_label=_legend_label, x_range_name=_legend_label,
+                                 axis_label_text_font_size='10px',
+                                 major_label_text_font_size = '10px',  # )  # ,
+                                 axis_label_standoff=0)  # this only adds space between new axes and its label
             extra_axes.append(this_ax)
     for _ax in extra_axes:
         _p.add_layout(_ax, 'above')
+
+
+def add_seismic_traces(_p: bokeh.plotting.figure,
+                _column: LogColumn,
+                _index: int = 0):
+    """
+    Similar to add_line(), but adds the seismic traces of index _index to the given column _column
+    :param _p:
+    :param _column:
+    :param _index:
+    :return:
+    """
+    trace_source = None
+    _seismic_color_map = None
+    for j, _seismic in enumerate(_column.seismic_traces):
+        if j != _index:
+            continue
+        trace_source = ColumnDataSource({'value': [_seismic.traces.T]})
+        _seismic_color_map = seismic_color_map(min_val=np.min(_seismic.traces), max_val=np.max(_seismic.traces))
+    if trace_source is not None:
+        # _p.image('value', source=trace_source, color_mapper=_seismic_color_map, dh=test_data_length, dw=128,
+        #          x=0, y=0)
+        _p.image('value', source=trace_source, color_mapper=_seismic_color_map,
+                 dh=np.max(_column.seismic_traces[_index].y) - np.min(_column.seismic_traces[_index].y),
+                 dw=np.max(_column.seismic_traces[_index].x) - np.min(_column.seismic_traces[_index].x),
+                 x=np.min(_column.seismic_traces[_index].x),
+                 y=np.min(_column.seismic_traces[_index].y)
+                 )
+
+        # add color bar
+        color_bar = ColorBar(color_mapper=_seismic_color_map,
+                             title='Seismic',
+                             title_text_align = 'right',
+                             label_standoff=3, major_label_text_font_size='10px')
+        _p.add_layout(color_bar, 'above')
+
 
 
 def add_strat_table(_p: bokeh.plotting.figure,
@@ -481,3 +655,37 @@ def add_strat_table(_p: bokeh.plotting.figure,
         index_header='row index',
         index_width=60)
 
+
+def seismic_color_map(min_val=-1, max_val=1, n=256, symmetric=True) -> bokeh.models.mappers.LinearColorMapper:
+    # Construct cmap dictionary
+    c_dict = {'red': ((0, 0.6314, 0.6314),
+                     (0.33, 0, 0),
+                     (0.4, 0.302, 0.302),
+                     (0.5, 0.8, 0.8),
+                     (0.6, 0.3804, 0.3804),
+                     (0.667, 0.749, 0.749),
+                     (1, 1, 1)),
+             'green': ((0, 1, 1),
+                       (0.33, 0, 0),
+                       (0.4, 0.302, 0.302),
+                       (0.5, 0.8, 0.8),
+                       (0.6, 0.2706, 0.2706),
+                       (0.667, 0, 0),
+                       (1, 1, 1)),
+             'blue': ((0, 1, 1),
+                      (0.33, 0.749, 0.749),
+                      (0.4, 0.302, 0.302),
+                      (0.5, 0.8, 0.8),
+                      (0.6, 0, 0),
+                      (0.667, 0, 0),
+                      (1, 0, 0))}
+
+    if symmetric:
+        if np.sign(min_val) != np.sign(max_val):
+            max_magnitude = np.max([np.abs(min_val), np.abs(max_val)])
+            min_val = np.sign(min_val) * max_magnitude
+            max_val = np.sign(max_val) * max_magnitude
+
+    cmap = mpl.colors.LinearSegmentedColormap('Seismic', c_dict).reversed()
+    _colors = cmap(np.linspace(0, 1, n))
+    return LinearColorMapper(palette=[mpl.colors.to_hex(_c) for _c in _colors], low=min_val, high=max_val)

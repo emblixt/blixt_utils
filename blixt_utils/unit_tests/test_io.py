@@ -6,7 +6,7 @@ import time
 
 from blixt_utils.io.io import read_general_ascii_GENERAL as read_file, project_wells_new
 from blixt_utils.io.io import (get_las_well_info, get_las_curve_info, get_las_header, get_las_names_units,
-                               get_las_start_data_line)
+                               get_las_start_data_line, read_sums_and_averages)
 test_file_dir = str(os.path.dirname(__file__).replace(
     'blixt_utils\\blixt_utils\\unit_tests',
     'blixt_rp\\test_data'))
@@ -148,4 +148,9 @@ class IOTestCase(unittest.TestCase):
         this_well = list(wells.keys())[0]
         read_checkshot_or_wellpath(wp.project_table, this_well, "Checkshots")
 
-
+    def test_sums_and_averages(self):
+        excel_file = "C:\\Users\\emb\\OneDrive - Petrolia NOCO AS\\Technical work\PL1221\\SumsAndAverages.xlsx"
+        result = read_sums_and_averages(excel_file)
+        for _key in list(result.keys()):
+            print(_key, result[_key])
+        self.assertTrue(True)

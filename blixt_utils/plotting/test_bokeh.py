@@ -5,6 +5,8 @@ from bokeh.models import Slider, ColorPicker
 from bokeh.io import output_file
 from bokeh.layouts import gridplot
 from bokeh.models import PanTool,WheelZoomTool, ResetTool, SaveTool, CrosshairTool, HoverTool
+from bokeh.models import (Slider, ColorPicker, Range1d, LinearAxis, Span, Legend, ColumnDataSource, Text,
+                          CustomJS)
 
 from AkerBP_PL1099.NordenskioldAVO import plot_CGG22M05_traces_above_Nordenskiold
 
@@ -35,6 +37,25 @@ def first_step_one():
     p.line(x, y3, legend_label="Objects", color="green", line_width=2)
 
     # show the results
+    show(p)
+
+def test_spacing():
+    # Create figure
+    p = figure(width=600, height=400, x_axis_location='above')
+
+    # Primary axis
+    p.xaxis.axis_label = "Primary Axis"
+    p.xaxis.axis_label_standoff = 20  # Increase space between label and axis
+
+    # Secondary axis
+    p.extra_x_ranges = {"x2": Range1d(start=0, end=100)}
+    secondary_axis = LinearAxis(x_range_name="x2", axis_label="Secondary Axis", axis_label_standoff=40)
+    p.add_layout(secondary_axis, 'above')
+
+    # Plot data
+    p.line([10, 20, 30, 40], [1, 2, 3, 4],  color="blue")
+    p.line( [15, 30, 45, 60], [1, 2, 3, 4], color="red", x_range_name="x2")
+
     show(p)
 
 def test_callback():
@@ -140,4 +161,4 @@ if __name__ == '__main__':
     # plotter = BokehPlotter()
     # lps = plotter.linked_plots()
     # plotter.show_plot(lps)
-    test_callback()
+    test_spacing()
