@@ -6,7 +6,8 @@ from bokeh.io import output_file
 from bokeh.layouts import gridplot
 from bokeh.models import PanTool,WheelZoomTool, ResetTool, SaveTool, CrosshairTool, HoverTool
 from bokeh.models import (Slider, ColorPicker, Range1d, LinearAxis, Span, Legend, ColumnDataSource, Text,
-                          CustomJS)
+                          Rect, CustomJS)
+import numpy as np
 
 from AkerBP_PL1099.NordenskioldAVO import plot_CGG22M05_traces_above_Nordenskiold
 
@@ -38,6 +39,23 @@ def first_step_one():
 
     # show the results
     show(p)
+
+def test_rectangles():
+    # Create figure
+    p = figure(width=600, height=400, x_axis_location='above')
+    N = 3
+    y = np.linspace(-2, 2, N)
+    x = 0
+    w = 3
+    h = 2
+
+    source = ColumnDataSource(dict(y=y))
+
+    glyph = Rect(x=x, y="y", width=w, height=h, angle=0, fill_color="#cab2d6")
+    p.add_glyph(source, glyph)
+    print(p.width, p.height)
+    show(p)
+
 
 def test_spacing():
     # Create figure
@@ -161,4 +179,4 @@ if __name__ == '__main__':
     # plotter = BokehPlotter()
     # lps = plotter.linked_plots()
     # plotter.show_plot(lps)
-    test_spacing()
+    test_rectangles()

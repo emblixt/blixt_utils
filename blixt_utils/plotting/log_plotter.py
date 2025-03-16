@@ -546,6 +546,8 @@ def add_strat_table(_p: bokeh.plotting.figure,
             'line_style' :
             'line_width' : List of integers
             'font_size' : List of strings, e.g. ['10px', ...]
+    :param width:
+        width in pixels
     :return:
     """
     if width is None:
@@ -592,7 +594,6 @@ def add_strat_table(_p: bokeh.plotting.figure,
 
     names = sorted(stratigraphy_frame['name'].unique())
     levels = sorted(stratigraphy_frame['level'].unique())
-    # line_widths = [1, 2, 3, 4, 5]
     line_widths = ['1', '2', '3', '4', '5']
     line_styles = ['solid', 'dashed', 'dotted', 'dotdash', 'dashdot']
 
@@ -616,7 +617,7 @@ def add_strat_table(_p: bokeh.plotting.figure,
         TableColumn(field='line_width', title='Line width',
                     # editor=IntEditor()),
                     editor = SelectEditor(options=line_widths)),
-    TableColumn(field='font_size', title='Font size',
+        TableColumn(field='font_size', title='Font size',
                     editor=StringEditor())
 
     ]
