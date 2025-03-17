@@ -9,8 +9,6 @@ from bokeh.models import (Slider, ColorPicker, Range1d, LinearAxis, Span, Legend
                           Rect, CustomJS)
 import numpy as np
 
-from AkerBP_PL1099.NordenskioldAVO import plot_CGG22M05_traces_above_Nordenskiold
-
 tools = [
     PanTool(),
     WheelZoomTool(),
@@ -20,7 +18,7 @@ tools = [
     SaveTool()
 ]
 
-output_file('C:\\Users\emb\Documents\plot.html')
+output_file('C:\\Users\marte\Documents\plot.html')
 
 # prepare some data
 x = [1, 2, 3, 4, 5]

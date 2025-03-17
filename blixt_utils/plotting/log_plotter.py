@@ -6,16 +6,17 @@ import numpy as np
 from openpyxl.styles.builtins import title
 from pandas import DataFrame
 from typing import Literal
-from IPython.core.magics.code import extract_code_ranges
+# from IPython.core.magics.code import extract_code_ranges
 from bokeh.plotting import figure, show
 from bokeh.layouts import row, column, Spacer
 from bokeh.models import (Slider, ColorPicker, Range1d, LinearAxis, Span, Legend, ColumnDataSource, Text,
-                          CustomJS, LinearColorMapper)
+                          CustomJS, CustomJSTransform, LinearColorMapper)
 from bokeh.models import PanTool,WheelZoomTool, ResetTool, SaveTool, CrosshairTool, HoverTool, ColorBar, LogColorMapper
 from bokeh.models import (DataTable, NumberEditor, SelectEditor, StringEditor, StringFormatter,
-                          IntEditor, TableColumn, CheckboxEditor)
+                          IntEditor, TableColumn, CheckboxEditor, Rect)
 from bokeh.io import output_file
 from bokeh.layouts import gridplot
+from bokeh.transform import transform
 
 import bruges
 
@@ -98,7 +99,7 @@ class LogPlotter:
         for i, _column in enumerate(self.columns):
             _p = create_column_figure(_column, _w, _h, self.column_width, self.height,
                                       _y_range_flipped=i==0,
-                                      _x_axis_visible=True,
+                                      _x_axis_visible=len(_column) > 0,
                                       _y_axis_visible=i==0,
                                       _tools=tools)
             children.append(_p)
@@ -110,7 +111,6 @@ class LogPlotter:
 
         return gridplot([[_child for _child in children]],
                         toolbar_location='right', merge_tools=True)
-
 
 
 class LogColumn:
@@ -205,7 +205,8 @@ class LogColumn:
             raise IOError('{} is not a SeismicTraces object'.format(_st))
         self._lines.append(_st)
 
-
+    def __len__(self):
+        return max([len(self.lines), len(self.seismic_traces)])
 class Line:
     """
     Simple class for defining a line object
@@ -525,10 +526,10 @@ def add_seismic_traces(_p: bokeh.plotting.figure,
         _p.add_layout(color_bar, 'above')
 
 
-
 def add_strat_table(_p: bokeh.plotting.figure,
                     stratigraphy: dict,
-                    width: int | None = None) -> bokeh.models.DataTable:
+                    width: int | None = None,
+                    column_index: int | None = None) -> bokeh.models.DataTable:
     """
     Adds the stratigraphic levels in the stratigraphy dictionary to the plot, and adds a table that
     control them.
@@ -548,6 +549,10 @@ def add_strat_table(_p: bokeh.plotting.figure,
             'font_size' : List of strings, e.g. ['10px', ...]
     :param width:
         width in pixels
+    :param column_index:
+        int or None
+        The figure _p has several columns, or children. If column_index is not None, it plots the intervals in this
+        column
     :return:
     """
     if width is None:
@@ -555,17 +560,33 @@ def add_strat_table(_p: bokeh.plotting.figure,
     code = """
         //Try to loop over all spans 
         const data = source.data;
+        const mid_points = new Float64Array(data['top'].length);
+        const heights = new Float64Array(data['top'].length);
         for (var i = 0; i < spans.length; i++) {
             const boolValue = data['visible'][i] === 1 ? true : false;
             spans[i].location = data['top'][i];
             spans[i].line_color = data['color'][i];
             spans[i].visible = boolValue;
             spans[i].line_dash = data['line_style'][i];
-            spans[i].line_width = data['line_width'][i];
-            //console.log('Data changed:', boolValue);
+            spans[i].line_width = data['line_width'][i]; 
+            mid_points[i] = 0.5 * (data['top'][i] + data['base'][i])
+            heights[i] = data['base'][i] - data['top'][i]
         };
+        source.data['mid'] = mid_points
+        source.data['height'] = heights
+        console.log('Data changed:', data['mid'][i]);
         source.change.emit();
         """
+    mid_point_func = """
+        // Find midpoint of each interval
+        const top = top_data;
+        const base = base_data;
+        const mid_point = new Float64Array(top.length);
+    for (var i = 0; i < top.length; i++) {
+        mid_point[i] = 0.5 * (top[i] + base[i])
+    };
+    return mid_point
+"""
     _necessary_keys = ['name', 'top']
     _optional_keys = ['base', 'visible', 'level', 'color', 'line_style', 'line_width', 'font_size']
     _current_keys = list(stratigraphy.keys())
@@ -589,6 +610,10 @@ def add_strat_table(_p: bokeh.plotting.figure,
                 stratigraphy[_key] = [2] * len(stratigraphy['top'])
             elif _key == 'font_size':
                 stratigraphy[_key] =['15px'] * len(stratigraphy['top'])
+
+    # create extra source items
+    stratigraphy['mid'] = list(0.5 * (np.array(stratigraphy['top']) + np.array(stratigraphy['base'])))
+    stratigraphy['height'] = list(np.array(stratigraphy['base']) - np.array(stratigraphy['top']))
 
     stratigraphy_frame = DataFrame(stratigraphy)
 
@@ -624,6 +649,8 @@ def add_strat_table(_p: bokeh.plotting.figure,
 
     strati_source = ColumnDataSource(stratigraphy_frame)
 
+    # mid_point = CustomJSTransform(func=mid_point_func)  # the bokeh transform method seems to only handle one input variable!
+
     def spans():
         _tmp = []
         for _i, _name in enumerate(strati_source.data['name']):
@@ -632,6 +659,15 @@ def add_strat_table(_p: bokeh.plotting.figure,
                              line_dash=strati_source.data['line_style'][_i],
                              line_color=strati_source.data['color'][_i]))
         return _tmp
+
+    def strati_units():
+        if column_index is not None:
+            for _i, _name in enumerate(strati_source.data['name']):
+                glyph = Rect(x=0, y="mid", width=10, height="height", angle=0, fill_color="color")
+                # glyph = Rect(x=0, y=transform('top', 'base'), width=10, height=100, angle=0, fill_color="color")
+                _p.children[column_index][0].add_glyph(strati_source, glyph)
+
+    strati_units()
 
     text_glyph = None
     _spans = spans()
@@ -642,6 +678,14 @@ def add_strat_table(_p: bokeh.plotting.figure,
                 text_glyph = Text(x=_child[0].x_range.start, y='top',
                                   text='name', text_font_size='font_size', text_alpha='visible')
                 _child[0].add_glyph(strati_source, text_glyph)
+        if column_index is not None:
+            for i, _child in enumerate(_p.children):
+                if i == column_index:
+                    text_glyph = Text(x=0., y='mid',
+                                      text='name', text_font_size='font_size', text_font_style='bold',
+                                      text_alpha='visible', text_align='center', angle=90., angle_units='deg')
+                    # text_glyph.level = 'overlay'
+                    _child[0].add_glyph(strati_source, text_glyph)
 
     span_callback = CustomJS(args=dict(source=strati_source, spans=_spans), code=code)
 

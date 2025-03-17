@@ -7,7 +7,7 @@ from bokeh.io import output_file
 from bokeh.models import Slider, ColorPicker, Range1d, Span, CustomJS, CheckboxEditor, Text
 from bokeh.models import (ColumnDataSource, DataTable, NumberEditor, SelectEditor, StringEditor, StringFormatter,
     IntEditor, TableColumn)
-from html5lib.constants import hexDigits
+# from html5lib.constants import hexDigits
 
 
 # To test blixt_rp and blixt_utils libraries directly, without installation:
@@ -18,7 +18,7 @@ sys.path.append(os.path.join(project_dir, 'blixt_utils'))
 from blixt_utils.plotting.log_plotter import LogPlotter, LogColumn, Line, seismic_color_map, SeismicTraces
 import blixt_utils.plotting.log_plotter as bupl
 
-output_file('C:\\Users\emb\Documents\plot.html')
+output_file('C:\\Users\marte\Documents\plot.html')
 
 line1 = Line(x=None, y=None, line_args={'legend_label': "Temp.", 'color': "blue", 'line_width': 2})
 line2 = Line(x=np.random.normal(10., 1., 500), y=np.linspace(1000., 2000., 500),
@@ -71,19 +71,23 @@ class SetUp(unittest.TestCase):
 
     def test_link_table(self):
         lp = LogPlotter(width=800, height=1000)
+        c3 = LogColumn('c3')
         c2 = LogColumn('c2',  lines=[line1, line2])
         c1 = LogColumn('c1',  lines=[line2, line3, line1], rel_width=2)
-        lp.columns = [c2, c1]
+        lp.columns = [c2, c3, c1]
         p = lp.figure()
+
+        print(p.children)
 
         data_table = bupl.add_strat_table(
             p,
             {'name': ['Viking GP', 'Draupne FM', 'Intra Draupne FM SST'],
-            'top': [1500., 1600., 1630.]},
-            width = 800
+            'top': [1500., 1600., 1630.], 'base': [1600., 1630., 1700.], 'color': ['red', 'blue', 'green']},
+            width = 800,
+            column_index=1
         )
         show(column(p, data_table))
-
+        # show(p)
         self.assertTrue(True)
 
     def test_synthetic_traces(self):
