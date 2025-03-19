@@ -71,7 +71,7 @@ class SetUp(unittest.TestCase):
 
     def test_link_table(self):
         lp = LogPlotter(width=800, height=1000)
-        c3 = LogColumn('c3')
+        c3 = LogColumn('c3', rel_width=0.5)
         c2 = LogColumn('c2',  lines=[line1, line2])
         c1 = LogColumn('c1',  lines=[line2, line3, line1], rel_width=2)
         lp.columns = [c2, c3, c1]
@@ -81,8 +81,9 @@ class SetUp(unittest.TestCase):
 
         data_table = bupl.add_strat_table(
             p,
-            {'name': ['Viking GP', 'Draupne FM', 'Intra Draupne FM SST'],
-            'top': [1500., 1600., 1630.], 'base': [1600., 1630., 1700.], 'color': ['red', 'blue', 'green']},
+            {'name': ['Viking GP', 'Draupne FM', 'Another FM'],
+            'top': [1000., 1400., 1630.], 'base': [2600., 1630., 1900.], 'color': ['red', 'blue', 'green'],
+             'level': [0, 1, 1]},
             width = 800,
             column_index=1
         )

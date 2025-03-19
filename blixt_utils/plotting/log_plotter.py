@@ -601,7 +601,7 @@ def add_strat_table(_p: bokeh.plotting.figure,
             elif _key == 'visible':
                 stratigraphy[_key] = [True] * len(stratigraphy['top'])
             elif _key == 'level':
-                stratigraphy[_key] = ['Formation'] * len(stratigraphy['top'])
+                stratigraphy[_key] = [1 if np.mod(i, 2) == 0 else 2 for i in range(len(stratigraphy['top']))]
             elif _key == 'color':
                 stratigraphy[_key] = ['blue'] * len(stratigraphy['top'])
             elif _key == 'line_style':
@@ -630,7 +630,7 @@ def add_strat_table(_p: bokeh.plotting.figure,
                     editor=SelectEditor(options=names),
                     formatter=StringFormatter(font_style='bold')),
         TableColumn(field='level', title='Level',
-                    editor=SelectEditor(options=levels)),
+                    editor=IntEditor(step=1)),
         TableColumn(field='top', title='Top [m MD]',
                     editor=NumberEditor()),
         TableColumn(field='base', title='Base [m MD]',
@@ -663,7 +663,7 @@ def add_strat_table(_p: bokeh.plotting.figure,
     def strati_units():
         if column_index is not None:
             for _i, _name in enumerate(strati_source.data['name']):
-                glyph = Rect(x=0, y="mid", width=10, height="height", angle=0, fill_color="color")
+                glyph = Rect(x="level", y="mid", width=1, height="height", angle=0, fill_color="color")
                 # glyph = Rect(x=0, y=transform('top', 'base'), width=10, height=100, angle=0, fill_color="color")
                 _p.children[column_index][0].add_glyph(strati_source, glyph)
 
@@ -681,9 +681,10 @@ def add_strat_table(_p: bokeh.plotting.figure,
         if column_index is not None:
             for i, _child in enumerate(_p.children):
                 if i == column_index:
-                    text_glyph = Text(x=0., y='mid',
+                    text_glyph = Text(x='level', y='mid',
                                       text='name', text_font_size='font_size', text_font_style='bold',
-                                      text_alpha='visible', text_align='center', angle=90., angle_units='deg')
+                                      text_alpha=1, text_align='center', text_baseline='middle',
+                                      angle=90., angle_units='deg')
                     # text_glyph.level = 'overlay'
                     _child[0].add_glyph(strati_source, text_glyph)
 
