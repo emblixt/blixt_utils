@@ -950,6 +950,7 @@ def test(path, seed=None, patch_size=128):
     return synt_traces
 
 
+
 if __name__ == '__main__':
     base_folder = "C:\\tmp"
     arrange_logging(True, os.path.join(base_folder, "test.log"))

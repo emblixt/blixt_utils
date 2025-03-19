@@ -1,12 +1,13 @@
 from bokeh.plotting import figure, show
-from bokeh.models import Line
+from bokeh.models import Line, NumberEditor
 from bokeh.layouts import row, column
 from bokeh.models import Slider, ColorPicker
 from bokeh.io import output_file
 from bokeh.layouts import gridplot
 from bokeh.models import PanTool,WheelZoomTool, ResetTool, SaveTool, CrosshairTool, HoverTool
-
-from AkerBP_PL1099.NordenskioldAVO import plot_CGG22M05_traces_above_Nordenskiold
+from bokeh.models import (Slider, ColorPicker, Range1d, LinearAxis, Span, Legend, ColumnDataSource, Text,
+                          Rect, CustomJS)
+import numpy as np
 
 tools = [
     PanTool(),
@@ -17,7 +18,7 @@ tools = [
     SaveTool()
 ]
 
-output_file('C:\\Users\emb\Documents\plot.html')
+output_file('C:\\Users\marte\Documents\plot.html')
 
 # prepare some data
 x = [1, 2, 3, 4, 5]
@@ -36,6 +37,74 @@ def first_step_one():
 
     # show the results
     show(p)
+
+def test_rectangles():
+    # Create figure
+    p = figure(width=600, height=400, x_axis_location='above')
+    N = 3
+    y = np.linspace(-2, 2, N)
+    x = 0
+    w = 3
+    h = 2
+
+    source = ColumnDataSource(dict(y=y))
+
+    glyph = Rect(x=x, y="y", width=w, height=h, angle=0, fill_color="#cab2d6")
+    p.add_glyph(source, glyph)
+    print(p.width, p.height)
+    show(p)
+
+
+def test_spacing():
+    # Create figure
+    p = figure(width=600, height=400, x_axis_location='above')
+
+    # Primary axis
+    p.xaxis.axis_label = "Primary Axis"
+    p.xaxis.axis_label_standoff = 20  # Increase space between label and axis
+
+    # Secondary axis
+    p.extra_x_ranges = {"x2": Range1d(start=0, end=100)}
+    secondary_axis = LinearAxis(x_range_name="x2", axis_label="Secondary Axis", axis_label_standoff=40)
+    p.add_layout(secondary_axis, 'above')
+
+    # Plot data
+    p.line([10, 20, 30, 40], [1, 2, 3, 4],  color="blue")
+    p.line( [15, 30, 45, 60], [1, 2, 3, 4], color="red", x_range_name="x2")
+
+    show(p)
+
+def test_callback():
+    from bokeh.models import ColumnDataSource, DataTable, Span, CustomJS, TableColumn
+
+    source = ColumnDataSource(data={'x': [1, 2, 3], 'y': [4, 5, 6]})
+    table_columns = [
+        TableColumn(field='x', title='X',
+                    editor=NumberEditor()),
+        TableColumn(field='y', title='Y',
+                    editor=NumberEditor())
+        ]
+
+    p = figure()
+    p.line([0, 10], [0, 10])
+    span = Span(location=0, dimension='width', line_color='red', line_dash='dashed')
+
+    # source.data.update({'x': [4, 5, 6], 'y': [7, 8, 9]})
+
+    callback = CustomJS(args=dict(source=source, span=span), code="""
+        const data = source.data;
+        console.log('Data changed:', data);
+        span.location = data['y'][0];  
+        source.change.emit(); // Update span location based on first row of 'y' column
+    """)
+    source.js_on_change('patching', callback)
+
+    data_table = DataTable(source=source, columns=table_columns, editable=True)  # Define your columns
+
+    p.add_layout(span)
+    show(column(p, data_table))
+
+
 
 
 class BokehPlotter:
@@ -105,6 +174,7 @@ class BokehPlotter:
 
 if __name__ == '__main__':
     # first_step_one()
-    plotter = BokehPlotter()
-    lps = plotter.linked_plots()
-    plotter.show_plot(lps)
+    # plotter = BokehPlotter()
+    # lps = plotter.linked_plots()
+    # plotter.show_plot(lps)
+    test_rectangles()

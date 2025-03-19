@@ -199,7 +199,8 @@ def print_info(
         level: str,
         logger: logging.Logger | None,
         verbose=True,
-        to_logger=True
+        to_logger=True,
+        raiser: str | None = None
 ):
     if verbose:
         print('{}: {}'.format(level.upper(), text))
@@ -216,6 +217,15 @@ def print_info(
             logger.exception(text)
         else:
             raise IOError('Logger level: {}, not recognized'.format(level.upper()))
+    if raiser is not None:
+        if raiser.lower() == 'ioerror':
+            raise(IOError(text))
+        elif raiser.lower() == 'notimplementederror':
+            raise(NotImplementedError(text))
+        elif raiser.lower() == 'oserror':
+            raise (OSError(text))
+        elif raiser.lower() == 'typeerror':
+            raise(TypeError(text))
 
 
 def add_one(in_string):
