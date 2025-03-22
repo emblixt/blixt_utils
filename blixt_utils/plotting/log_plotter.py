@@ -84,7 +84,7 @@ class LogPlotter:
     def columns(self, l: list):
         self._columns = l
 
-    def column(self, _column):
+    def add_column(self, _column):
         self._columns.append(_column)
 
     @property
