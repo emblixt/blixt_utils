@@ -7,6 +7,12 @@ Set of tools for handling masks (originally for infrasound data)
 import numpy as np
 import logging
 
+import pint
+
+logger = logging.getLogger(__name__)
+
+import blixt_utils.utils as buu
+import blixt_rp.core.log_curve_new as brlc
 
 def create_mask(data, operator, limits):
     """
@@ -35,12 +41,21 @@ def create_mask(data, operator, limits):
         True values indicate that this data point fulfills the operator with the given limits
     """
 
-    if not isinstance(data, np.ndarray):
-        raise OSError('Only numpy ndarray are allowed as data input')
+    if  not (isinstance(data, np.ndarray) or isinstance(data, pint.Quantity) or isinstance(data, brlc.Depth)):
+        buu.print_info('Only numpy ndarray, or pint quantities are allowed as data input, not {}'.format(type(data)),'error', logger, raiser='IOError')
 
     # convert limits to a list of limits
-    if not isinstance(limits, list):
+    if not isinstance(limits, list) or isinstance(limits, pint.Quantity):
         limits = [limits]
+
+    # If data is a pint.Quantity, the limits must also be pint.Quantities
+    # We try to convert everything to the units of the data, and continue doing the calculation on
+    # converted data without units
+    if isinstance(data, pint.Quantity) or isinstance(data, brlc.Depth):
+        data_unit = data.units
+        data = data.magnitude
+        limits = [_x.to(data_unit).magnitude for _x in limits]
+
 
     logging.debug(
         'Masking data of length {}, using the operator: {} with limits: {}'.format(

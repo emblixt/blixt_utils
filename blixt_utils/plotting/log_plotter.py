@@ -9,7 +9,7 @@ from typing import Literal
 # from IPython.core.magics.code import extract_code_ranges
 from bokeh.plotting import figure, show
 from bokeh.layouts import row, column, Spacer
-from bokeh.models import (Slider, ColorPicker, Range1d, LinearAxis, Span, Legend, ColumnDataSource, Text,
+from bokeh.models import (Slider, ColorPicker, Range1d, LinearAxis, LogAxis,  Span, Legend, ColumnDataSource, Text,
                           CustomJS, CustomJSTransform, LinearColorMapper)
 from bokeh.models import PanTool,WheelZoomTool, ResetTool, SaveTool, CrosshairTool, HoverTool, ColorBar, LogColorMapper
 from bokeh.models import (DataTable, NumberEditor, SelectEditor, StringEditor, StringFormatter,
@@ -21,6 +21,7 @@ from bokeh.transform import transform
 import bruges
 
 # from blixt_utils.misc.templates import necessary_keys
+from blixt_rp.core.core import Template
 
 tools = [
     PanTool(),
@@ -84,8 +85,19 @@ class LogPlotter:
     def columns(self, l: list):
         self._columns = l
 
-    def add_column(self, _column):
+    def add_column(self, _column, keep_column_width=True):
+        if keep_column_width:
+            old_width = self.width
+            old_column_width = self.column_width
+            self.width = old_width + _column.rel_width * old_column_width
         self._columns.append(_column)
+
+    def insert_column(self, _i, _column, keep_column_width=True):
+        if keep_column_width:
+            old_width = self.width
+            old_column_width = self.column_width
+            self.width = old_width + _column.rel_width * old_column_width
+        self._columns.insert(_i, _column)
 
     @property
     def column_width(self):
@@ -123,7 +135,8 @@ class LogColumn:
                  rel_width: float = 1.,
                  rel_header_height: float = 0.,
                  lines: list | None = None,
-                 seismic_traces: list | None = None
+                 seismic_traces: list | None = None,
+                 scale: str = 'linear'
                  ):
         """
         :param name:
@@ -142,6 +155,9 @@ class LogColumn:
         :param seismic_traces:
             list
             A list of SeismicTraces objects
+        :param scale:
+            str
+            'linear' or 'log'
         """
         if lines is None:
             lines = []
@@ -152,6 +168,9 @@ class LogColumn:
         self._rel_width = rel_width
         self._rel_header_height = rel_header_height
         self._name = name
+        if scale is None:
+            scale = 'linear'
+        self.scale = scale
 
     @property
     def name(self):
@@ -207,6 +226,7 @@ class LogColumn:
 
     def __len__(self):
         return max([len(self.lines), len(self.seismic_traces)])
+
 class Line:
     """
     Simple class for defining a line object
@@ -214,16 +234,23 @@ class Line:
     def __init__(self,
                  x=None,
                  y=None,
-                 line_args=None,
-                 x_range: tuple = (None, None)
+                 style: Template | None = None,
+                 source: ColumnDataSource | None = None
     ):
         """
 
         :param x:
         :param y:
-        :param line_args:
-            dict
-            Dictionary with arguments that goes to the bokeh.figure.line() method
+        :param style:
+            Template
+            Template object which we use to create the line arguments that goes to the bokeh.figure.line() method.
+            Most important arguments are:
+            line_color='black', line_style='solid,  line_width=1, name='name'
+        :param source:
+            ColumnDataSource that can be updated interactively in bokeh.
+            If given, the x and y must be strings that exists within this source. E.G.
+            > source = ColumnDataSource(dict(alpha=<some data>, beta=<some other data>))
+            > Line(x='alpha', y='beta', source=source)
         """
         if x is None:
             x = np. random.normal(0., 1., test_data_length)
@@ -231,10 +258,11 @@ class Line:
         if y is None:
             y = np.linspace(500, 3500, len(self._x))
         self._y = y
-        if line_args is None:
-            line_args = {}
-        self._line_args = line_args
-        self._x_range = x_range
+        if style is None:
+            style = Template(**dict(line_color='black', line_style = 'solid', line_width = 2, name = 'TEST',
+                                    min=1000., max=13000.))
+        self.style = style
+        self.source = source
 
     @property
     def x(self):
@@ -246,20 +274,35 @@ class Line:
 
     @property
     def line_args(self):
-        return self._line_args
+        _d = {'line_color': 'blue' if self.style.line_color is None else self.style.line_color,
+              'line_width': 1.0 if self.style.line_width is None else self.style.line_width,
+              'line_dash': 'solid' if self.style.line_style is None else self.style.line_style,
+              'legend_label': self.style.name}
+        return _d
 
     @property
     def min(self):
-        return np.nanmin(self._x)
+        if self.source is None:
+            return np.nanmin(self.x)
+        else:
+            return np.nanmin(self.source.data[self.x])
 
     @property
     def max(self):
-        return np.nanmax(self._x)
+        if self.source is None:
+            return np.nanmax(self._x)
+        else:
+            return np.nanmax(self.source.data[self.x])
 
-    @property
-    def x_range(self):
-        _min = self._x_range[0]
-        _max = self._x_range[1]
+    def x_range(self, from_style=False):
+        _min = None
+        _max = None
+        if from_style:
+            if 'min' in list(self.style.keys()):
+                _min = self.style.min
+            if 'max' in list(self.style.keys()):
+                _max = self.style.max
+
         if _min is None:
             _min = self.min
         if _max is None:
@@ -428,6 +471,7 @@ def create_column_figure(_column: LogColumn,
     _p = figure(width=int(_column.rel_width * _width),
                 height=int(_height * (1. - _column.rel_header_height)),
                 x_axis_location = 'above',
+                x_axis_type = _column.scale,
                 tools=_tools)  # , active_inspect=None)
     # style the plot
     _p.toolbar.logo = None
@@ -436,7 +480,7 @@ def create_column_figure(_column: LogColumn,
     hover.tooltips = [("(x,y)", "($x, $y)"), ("Value", "@value")]
 
     if len(_column.lines) > 0:
-        _p.x_range = Range1d(*_column.lines[0].x_range)
+        _p.x_range = Range1d(*_column.lines[0].x_range(from_style=True))
 
     _p.xaxis.visible = _x_axis_visible
     _p.xaxis.axis_label_text_font_size='10px'
@@ -472,20 +516,31 @@ def add_lines(_p: bokeh.plotting.figure,
     """
     extra_axes = []
     for j, _line in enumerate(_column.lines):
-        # Create new legend that includes the range of the data
-        # _legend_label = '{:.1f} : {} : {:.1f}'.format(_line.x_range[0], legend_names[j], _line.x_range[1])
         _legend_label = _line.line_args['legend_label']
         if j == 0:
-            _p.line(_line.x, _line.y,  **_line.line_args)
+            if _line.source is None:
+                _p.line(x=_line.x, y=_line.y,  **_line.line_args)
+            else:
+                _p.line(x=_line.x, y=_line.y, source=_line.source, **_line.line_args)
             _p.xaxis.axis_label = _legend_label
+            _p.x_range = Range1d(*_line.x_range(from_style=True))
+            # print('XXX', _p.x_range.start, _p.x_range.end)
         else:
-            _p.extra_x_ranges[_legend_label] = Range1d(*_line.x_range)
-            _p.line(_line.x, _line.y, **_line.line_args,
-                    x_range_name=_legend_label)
-            this_ax = LinearAxis(axis_label=_legend_label, x_range_name=_legend_label,
-                                 axis_label_text_font_size='10px',
-                                 major_label_text_font_size = '10px',  # )  # ,
-                                 axis_label_standoff=0)  # this only adds space between new axes and its label
+            _p.extra_x_ranges[_legend_label] = Range1d(*_line.x_range(from_style=True))
+            if _line.source is None:
+                _p.line(x=_line.x, y=_line.y, **_line.line_args, x_range_name=_legend_label)
+            else:
+                _p.line(x=_line.x, y=_line.y, source=_line.source, **_line.line_args, x_range_name=_legend_label)
+            if _column.scale == 'log':
+                this_ax = LogAxis(axis_label=_legend_label, x_range_name=_legend_label,
+                                     axis_label_text_font_size='10px',
+                                     major_label_text_font_size = '10px',  # )  # ,
+                                     axis_label_standoff=0)  # this only adds space between new axes and its label
+            else:
+                this_ax = LinearAxis(axis_label=_legend_label, x_range_name=_legend_label,
+                                     axis_label_text_font_size='10px',
+                                     major_label_text_font_size = '10px',  # )  # ,
+                                     axis_label_standoff=0)  # this only adds space between new axes and its label
             extra_axes.append(this_ax)
     for _ax in extra_axes:
         _p.add_layout(_ax, 'above')
