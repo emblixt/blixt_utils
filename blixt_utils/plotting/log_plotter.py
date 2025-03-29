@@ -274,9 +274,21 @@ class Line:
 
     @property
     def line_args(self):
+        # handle linestyle
+        if self.style.line_style == '-':
+            line_dash = 'solid'
+        elif self.style.line_style == '--':
+            line_dash = 'dashed'
+        elif self.style.line_style == ':':
+            line_dash = 'dotted'
+        elif self.style.line_style == '-.':
+            line_dash = 'dotdash'
+        else:
+            line_dash = 'solid'
+
         _d = {'line_color': 'blue' if self.style.line_color is None else self.style.line_color,
               'line_width': 1.0 if self.style.line_width is None else self.style.line_width,
-              'line_dash': 'solid' if self.style.line_style is None else self.style.line_style,
+              'line_dash': line_dash,
               'legend_label': self.style.name}
         return _d
 

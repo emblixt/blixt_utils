@@ -11,9 +11,6 @@ import pint
 
 logger = logging.getLogger(__name__)
 
-import blixt_utils.utils as buu
-import blixt_rp.core.log_curve_new as brlc
-
 def create_mask(data, operator, limits):
     """
     Given input data, mask operator with limits, this routine returns the boolean mask
@@ -40,9 +37,10 @@ def create_mask(data, operator, limits):
         numpy boolean mask array
         True values indicate that this data point fulfills the operator with the given limits
     """
-
-    if  not (isinstance(data, np.ndarray) or isinstance(data, pint.Quantity) or isinstance(data, brlc.Depth)):
-        buu.print_info('Only numpy ndarray, or pint quantities are allowed as data input, not {}'.format(type(data)),'error', logger, raiser='IOError')
+    from blixt_rp.core.log_curve_new import Depth
+    from blixt_utils.utils import print_info
+    if  not (isinstance(data, np.ndarray) or isinstance(data, pint.Quantity) or isinstance(data, Depth)):
+        print_info('Only numpy ndarray, or pint quantities are allowed as data input, not {}'.format(type(data)),'error', logger, raiser='IOError')
 
     # convert limits to a list of limits
     if not isinstance(limits, list) or isinstance(limits, pint.Quantity):
@@ -51,7 +49,7 @@ def create_mask(data, operator, limits):
     # If data is a pint.Quantity, the limits must also be pint.Quantities
     # We try to convert everything to the units of the data, and continue doing the calculation on
     # converted data without units
-    if isinstance(data, pint.Quantity) or isinstance(data, brlc.Depth):
+    if isinstance(data, pint.Quantity) or isinstance(data, Depth):
         data_unit = data.units
         data = data.magnitude
         limits = [_x.to(data_unit).magnitude for _x in limits]

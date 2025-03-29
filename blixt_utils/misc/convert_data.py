@@ -1,7 +1,6 @@
 import numpy as np
 import logging
 
-from blixt_utils.utils import print_info
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +23,7 @@ def convert(in_data, from_unit=None, to_unit=None):
     :return:
         Bool, np.array
     """
+    from blixt_utils.utils import print_info
     # Clean up from_ and to_ units
     def clean_up(these_units):
         these_units = these_units.replace('$', '')

@@ -14,8 +14,6 @@ from scipy.interpolate import interp1d
 
 import segyio
 
-from blixt_utils.utils import isnan
-from blixt_utils.utils import nan_corrcoef, print_info, fix_well_name
 # If wavelet_plot is used, I get an 'ImportError' "cannot import name 'wavelet_plot' from partially initialized
 # module 'blixt_utils.plotting.helpers' (most likely due to a circular import)"
 # from blixt_utils.plotting.helpers import wavelet_plot
@@ -30,6 +28,7 @@ def read_segy(f, lag=0, twod=False, byte_il=189, byte_xl=193):
 
     Slightly modified and upgraded by Erik Mårten Blixt 2020-08-19
     """
+    from blixt_utils.utils import print_info
     if twod:
         with segyio.open(f, 'r', ignore_geometry=True) as segyfile:
             sr = segyio.tools.dt(segyfile)/1e3
@@ -198,6 +197,7 @@ def read_checkshot_or_wellpath(project_table_name, well_name, sheet_name, verbos
         dict, dict
         A dictionary with data, and one with information
     """
+    from blixt_utils.utils import print_info
     tmp = project_files_info(project_table_name, sheet_name)
     if well_name not in tmp:
         warn_txt = 'Well {} not listed in {} sheet of {}'.format(well_name, sheet_name, project_table_name)
@@ -554,6 +554,9 @@ def project_wells_new(filename, working_dir, sheet_name=None):
         dict
         dictionary with las file names as keys
     """
+    from blixt_utils.utils import isnan
+    from blixt_utils.utils import fix_well_name
+    from blixt_utils.utils import print_info
     result = {}
     selected_wells = get_selected_wells(filename)
     if sheet_name is None:
@@ -693,6 +696,9 @@ def project_wells(filename, working_dir):
         dict
         dictionary with las file names as keys
     """
+    from blixt_utils.utils import fix_well_name
+    from blixt_utils.utils import isnan
+    from blixt_utils.utils import print_info
     result = {}
     selected_wells = get_selected_wells(filename)
     sheet_name = 'Well logs'
@@ -759,6 +765,7 @@ def get_selected_wells(filename):
         list
         list of given well names of selected wells
     """""
+    from blixt_utils.utils import fix_well_name
     selected_wells = []
     sheet_name = 'Well settings'
     table = pd.read_excel(filename, header=1, sheet_name=sheet_name, engine='openpyxl')
@@ -895,6 +902,7 @@ def project_files_info(filename, sheet_name):
                 Not necessary if format is different from 'general ascii'
 
     """
+    from blixt_utils.utils import isnan
     result = {}
     table = None
     try:
@@ -922,6 +930,8 @@ def project_files_info(filename, sheet_name):
 
 
 def project_templates(filename):
+    from blixt_utils.utils import print_info
+    from blixt_utils.utils import isnan
     table = pd.read_excel(filename, header=1, sheet_name='Templates', engine='openpyxl')
     result = {}
     for i, ans in enumerate(table['Log type']):
@@ -1127,6 +1137,8 @@ def write_pcube_lfc(working_dir, results, wi_name, log_table, cutoffs_str, suffi
     The units are assumed to be m/s and g/cc
     :return
     """
+    from blixt_utils.utils import nan_corrcoef
+    from blixt_utils.utils import print_info
     if well_name is not None:
         name = '{} {}{}'.format(well_name, wi_name, suffix)
     else:
@@ -1434,6 +1446,7 @@ def write_regression(filename, reg_params, log_name, well_name, interval_name, r
 
     :return:
     """
+    from blixt_utils.utils import print_info
     allowed_reg_types = ['Linear']
     if reg_type.lower() not in [xx.lower() for xx in allowed_reg_types]:
         warn_txt = 'The given regression type,{}, is not one of the recognized types: {}'.format(
@@ -1608,6 +1621,7 @@ def read_petrel_checkshots(filename, only_these_wells=None):
     # Build in a check to see what the time units are!
     # Now we assume it is in ms
     # If we correct this, then make sure every usage of read_petrel_checkshots is updated
+    from blixt_utils.utils import fix_well_name
     checkshots = {}
     keys = []
     data_section = False
@@ -1756,6 +1770,7 @@ def unique_names(table, column_name, well_names=True):
         as returned from pandas.read_excel()
     returns the list of unique values in a column named 'column_name'
     """
+    from blixt_utils.utils import fix_well_name
     if well_names:
         return [fix_well_name(x) for x in list(set(table[column_name])) if isinstance(x, str)]
     else:
@@ -1815,6 +1830,7 @@ def return_dict_from_excel(file_name, sheet_name, header_line, well_key, depth_k
                 }
 
     """
+    from blixt_utils.utils import fix_well_name
     out = {}
     data_keys_dict = interpret_rename_string(data_str, keep_case=True)
 
@@ -1868,6 +1884,7 @@ def return_dict_from_tops(tops, well_key, top_key, key_name, only_these_wells=No
         else it is just the top depth
     :return:
     """
+    from blixt_utils.utils import fix_well_name
     if only_these_wells:
         unique_wells = only_these_wells
     else:
@@ -1921,6 +1938,7 @@ def write_las(filename, wh, lh, data, overwrite=False):
         Set to True to allow overwriting an existing las file
     :return:
     """
+    from blixt_utils.utils import print_info
     if os.path.isfile(filename) and (not overwrite):
         warn_txt = 'File {} already exist. Write cancelled'.format(filename)
         print_info(warn_txt, 'warning', logger)
@@ -2150,6 +2168,7 @@ def well_reader(lines, file_format='las'):
         https://pypi.org/project/las-converter/
 
     """
+    from blixt_utils.utils import fix_well_name
     def parse(x):
         try:
             x = int(x)
@@ -2440,6 +2459,7 @@ def interpret_rename_string(rename_string, keep_case=False):
     :return:
         dict or None
     """
+    from blixt_utils.utils import print_info
     if len(rename_string) < 3:
         return None
 
@@ -2471,6 +2491,7 @@ def interpret_cutoffs_string(cutoffs_string):
     :return:
         dict or None
     """
+    from blixt_utils.utils import print_info
     if len(cutoffs_string) < 3:
         return None
 

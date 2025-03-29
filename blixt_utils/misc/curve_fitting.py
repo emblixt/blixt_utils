@@ -14,7 +14,6 @@ sys.path.append(os.path.join(project_dir, 'blixt_rp'))
 sys.path.append(os.path.join(project_dir, 'blixt_utils'))
 
 from blixt_utils.misc import masks as msks
-from blixt_utils.utils import print_info
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +165,7 @@ def calculate_depth_trend(
         [ array([a0, b0, ...]), array([a1, b1, ...]), ...]
         where [a0, b0, ...] are the output from least_squares for the first interval, and so on
     """
+    from blixt_utils.utils import print_info
     if loss is None:
         loss = 'cauchy'
     if mask is None:
