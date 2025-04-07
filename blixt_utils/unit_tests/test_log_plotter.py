@@ -17,14 +17,16 @@ sys.path.append(os.path.join(project_dir, 'blixt_utils'))
 
 from blixt_utils.plotting.log_plotter import LogPlotter, LogColumn, Line, seismic_color_map, SeismicTraces
 import blixt_utils.plotting.log_plotter as bupl
+from blixt_rp.core.core import Template
 
-output_file('C:\\Users\marte\Documents\plot.html')
+# output_file('C:\\Users\marte\Documents\plot.html')
+output_file('C:\\Users\emb\Documents\plot.html')
 
-line1 = Line(x=None, y=None, line_args={'legend_label': "Temp.", 'color': "blue", 'line_width': 2})
+line1 = Line(x=None, y=None, style=Template(**{'name': "Temp.", 'line_color': "blue", 'line_width': 2}))
 line2 = Line(x=np.random.normal(10., 1., 500), y=np.linspace(1000., 2000., 500),
-             line_args={'legend_label': "D2", 'color': "red", 'line_width': 1})
+             style=Template(**{'name': "D2", 'line_color': "red", 'line_width': 1}))
 line3 = Line(x=np.random.normal(100., 1., 500), y=np.linspace(1000., 2000., 500),
-             line_args={'legend_label': "D3", 'color': "yellow", 'line_width': 2})
+             style=Template(**{'name': "D3", 'line_color': "yellow", 'line_width': 2}))
 seismic1 = SeismicTraces()
 
 
@@ -64,7 +66,7 @@ class SetUp(unittest.TestCase):
     def test_two_column_plot_with_seismic(self):
         lp = LogPlotter(width=800, height=1000)
         c2 = LogColumn('c2',  lines=[line1, line2])
-        c1 = LogColumn('c1',  seismic_traces=[seismic1], rel_width=2)
+        c1 = LogColumn('c1',  seismic_traces=seismic1, rel_width=2)
         lp.columns = [c2, c1]
         show(lp.figure())
         self.assertTrue(True)

@@ -34,6 +34,71 @@ tools = [
 
 test_data_length = 1000
 
+class SeismicTraces:
+    """
+    Simple class that contains N number of seismic traces,
+    Each trace must have the same depth/time dimension
+
+    """
+    def __init__(self,
+                 x: np.ndarray | None = None,
+                 y: np.ndarray | None = None,
+                 traces: np.ndarray | None = None,
+                 source: ColumnDataSource | None = None,
+                 trace_type: Literal['avo', 'eei', 'index'] | None = None
+                 ):
+        """
+
+        :param x:
+            np.ndarray of length M with values in the x direction
+            Contains incidence angles when trace_type is 'avo',
+            Chi angles when trace_type is 'eei', and index when trace_type is 'index'
+        :param y:
+            Numpy array of depth/time values, length N
+        :param traces:
+            np.ndarray of size MxN, contains M number of seismic traces, each of length N
+        :param source:
+            ColumnDataSource({'value': [_seismic.traces.T]})
+            Must have the key 'value'
+        :param trace_type:
+            string that describes the type of seismic variation in the x direction
+            'avo': Incidence angle (AVO)
+            'eei': Chi angle (Extended Elastic Impedance)
+            'index': index along an Inline, Xline or arbitrary seismic line
+        """
+        if x is None:
+            x = np.linspace(0,35, 128)
+        self._x = x
+        if y is None:
+            y = np.linspace(500, 3500, test_data_length)
+        self._y = y
+        if trace_type is None:
+            trace_type = 'avo'
+        self._trace_type = trace_type
+
+        self.source = source
+
+        if traces is None and source is None:
+            _synts = SyntheticTraces(trace_length=test_data_length, n_traces=len(x))
+            traces = _synts.get_traces(simulate_avo=self._trace_type=='avo')
+        self._traces = traces
+
+    @property
+    def x(self):
+        return self._x
+
+    @property
+    def y(self):
+        return self._y
+
+    @property
+    def trace_type(self):
+        return self._trace_type
+
+    @property
+    def traces(self):
+        return self._traces
+
 
 class LogPlotter:
     """
@@ -135,7 +200,7 @@ class LogColumn:
                  rel_width: float = 1.,
                  rel_header_height: float = 0.,
                  lines: list | None = None,
-                 seismic_traces: list | None = None,
+                 seismic_traces: SeismicTraces | None = None,
                  scale: str = 'linear'
                  ):
         """
@@ -153,8 +218,7 @@ class LogColumn:
             list
             A list of Line objects
         :param seismic_traces:
-            list
-            A list of SeismicTraces objects
+            A SeismicTraces objects
         :param scale:
             str
             'linear' or 'log'
@@ -162,8 +226,6 @@ class LogColumn:
         if lines is None:
             lines = []
         self._lines = lines
-        if seismic_traces is None:
-            seismic_traces = []
         self._seismic_traces = seismic_traces
         self._rel_width = rel_width
         self._rel_header_height = rel_header_height
@@ -213,19 +275,13 @@ class LogColumn:
         return self._seismic_traces
 
     @seismic_traces.setter
-    def seismic_traces(self, l: list):
-        for _st in l:
-            if not isinstance(_st, SeismicTraces):
+    def seismic_traces(self, st: SeismicTraces):
+        if not isinstance(st, SeismicTraces):
                 raise IOError('{} is not a SeismicTraces object'.format(_st))
-        self._seismic_traces = l
-
-    def add_seismic_traces(self, _st):
-        if not isinstance(_st, SeismicTraces):
-            raise IOError('{} is not a SeismicTraces object'.format(_st))
-        self._lines.append(_st)
+        self._seismic_traces = st
 
     def __len__(self):
-        return max([len(self.lines), len(self.seismic_traces)])
+        return max([len(self.lines), 1])  # There is only one seismic_traces object
 
 class Line:
     """
@@ -321,65 +377,6 @@ class Line:
             _max = self.max
         return _min, _max
 
-
-class SeismicTraces:
-    """
-    Simple class that contains N number of seismic traces,
-    Each trace must have the same depth/time dimension
-
-    """
-    def __init__(self,
-                 x: np.ndarray | None = None,
-                 y: np.ndarray | None = None,
-                 traces: np.ndarray | None = None,
-                 trace_type: Literal['avo', 'eei', 'index'] | None = None
-                 ):
-        """
-
-        :param x:
-            np.ndarray of length M with values in the x direction
-            Contains incidence angles when trace_type is 'avo',
-            Chi angles when trace_type is 'eei', and index when trace_type is 'index'
-        :param y:
-            Numpy array of depth/time values, length N
-        :param traces:
-            np.ndarray of size MxN, contains M number of seismic traces, each of length N
-        :param trace_type:
-            string that describes the type of seismic variation in the x direction
-            'avo': Incidence angle (AVO)
-            'eei': Chi angle (Extended Elastic Impedance)
-            'index': index along an Inline, Xline or arbitrary seismic line
-        """
-        if x is None:
-            x = np.linspace(0,35, 128)
-        self._x = x
-        if y is None:
-            y = np.linspace(500, 3500, test_data_length)
-        self._y = y
-        if trace_type is None:
-            trace_type = 'avo'
-        self._trace_type = trace_type
-
-        if traces is None:
-            _synts = SyntheticTraces(trace_length=test_data_length, n_traces=len(x))
-            traces = _synts.get_traces(simulate_avo=self._trace_type=='avo')
-        self._traces = traces
-
-    @property
-    def x(self):
-        return self._x
-
-    @property
-    def y(self):
-        return self._y
-
-    @property
-    def trace_type(self):
-        return self._trace_type
-
-    @property
-    def traces(self):
-        return self._traces
 
 class SyntheticTraces:
     def __init__(self,
@@ -503,7 +500,7 @@ def create_column_figure(_column: LogColumn,
     add_lines(_p, _column)
 
     # Add seismic, if it exists in this column
-    add_seismic_traces(_p, _column, 0)
+    add_seismic_traces(_p, _column)
 
     _p.y_range.flipped = _y_range_flipped
     _p.yaxis.visible = _y_axis_visible
@@ -559,38 +556,43 @@ def add_lines(_p: bokeh.plotting.figure,
 
 
 def add_seismic_traces(_p: bokeh.plotting.figure,
-                _column: LogColumn,
-                _index: int = 0):
+                _column: LogColumn):
     """
-    Similar to add_line(), but adds the seismic traces of index _index to the given column _column
+    Similar to add_line(), but adds the seismic traces to the given column _column
     :param _p:
     :param _column:
-    :param _index:
     :return:
     """
     trace_source = None
     _seismic_color_map = None
-    for j, _seismic in enumerate(_column.seismic_traces):
-        if j != _index:
-            continue
-        trace_source = ColumnDataSource({'value': [_seismic.traces.T]})
-        _seismic_color_map = seismic_color_map(min_val=np.min(_seismic.traces), max_val=np.max(_seismic.traces))
-    if trace_source is not None:
-        # _p.image('value', source=trace_source, color_mapper=_seismic_color_map, dh=test_data_length, dw=128,
-        #          x=0, y=0)
-        _p.image('value', source=trace_source, color_mapper=_seismic_color_map,
-                 dh=np.max(_column.seismic_traces[_index].y) - np.min(_column.seismic_traces[_index].y),
-                 dw=np.max(_column.seismic_traces[_index].x) - np.min(_column.seismic_traces[_index].x),
-                 x=np.min(_column.seismic_traces[_index].x),
-                 y=np.min(_column.seismic_traces[_index].y)
-                 )
+    if _column.seismic_traces is not None:
+        _seismic = _column.seismic_traces
+        if _seismic.source is None:
+            trace_source = ColumnDataSource({'value': [_seismic.traces.T]})
+            min_val = np.nanmin(_seismic.traces)
+            max_val = np.nanmax(_seismic.traces)
+        else:
+            trace_source = _seismic.source
+            min_val = np.nanmin(trace_source.data['value'])
+            max_val = np.nanmax(trace_source.data['value'])
+        _seismic_color_map = seismic_color_map(min_val=min_val, max_val=max_val)
+        if trace_source is not None:
+            # _p.image('value', source=trace_source, color_mapper=_seismic_color_map, dh=test_data_length, dw=128,
+            #          x=0, y=0)
+            _p.image('value', source=trace_source, color_mapper=_seismic_color_map,
+                     dh=np.max(_seismic.y) - np.min(_seismic.y),
+                     dw=np.max(_seismic.x) - np.min(_seismic.x),
+                     x=np.min(_seismic.x),
+                     y=np.min(_seismic.y)
+                     )
 
-        # add color bar
-        color_bar = ColorBar(color_mapper=_seismic_color_map,
-                             title='Seismic',
-                             title_text_align = 'right',
-                             label_standoff=3, major_label_text_font_size='10px')
-        _p.add_layout(color_bar, 'above')
+            _p.xaxis.axis_label = _seismic.trace_type
+            # add color bar
+            color_bar = ColorBar(color_mapper=_seismic_color_map,
+                                 # title='Seismic',
+                                 title_text_align = 'right',
+                                 label_standoff=3, major_label_text_font_size='10px')
+            _p.add_layout(color_bar, 'above')
 
 
 def add_strat_table(_p: bokeh.plotting.figure,
@@ -618,8 +620,8 @@ def add_strat_table(_p: bokeh.plotting.figure,
         width in pixels
     :param column_index:
         int or None
-        The figure _p has several columns, or children. If column_index is not None, it plots the intervals in this
-        column
+        The figure _p has several columns, or children. If column_index is not None, it plots the graphical
+        visualization of intervals (colored rectangles) in this column
     :return:
     """
     if width is None:
@@ -730,9 +732,11 @@ def add_strat_table(_p: bokeh.plotting.figure,
     def strati_units():
         if column_index is not None:
             for _i, _name in enumerate(strati_source.data['name']):
-                glyph = Rect(x="level", y="mid", width=1, height="height", angle=0, fill_color="color")
+                glyph = Rect(x="level", y="mid", width=1, height="height", angle=0, fill_color="color",
+                             fill_alpha='visible', line_width=0.)
                 # glyph = Rect(x=0, y=transform('top', 'base'), width=10, height=100, angle=0, fill_color="color")
                 _p.children[column_index][0].add_glyph(strati_source, glyph)
+            _p.children[column_index][0].xgrid.grid_line_color = None
 
     strati_units()
 
@@ -750,9 +754,8 @@ def add_strat_table(_p: bokeh.plotting.figure,
                 if i == column_index:
                     text_glyph = Text(x='level', y='mid',
                                       text='name', text_font_size='font_size', text_font_style='bold',
-                                      text_alpha=1, text_align='center', text_baseline='middle',
+                                      text_alpha='visible', text_align='center', text_baseline='middle',
                                       angle=90., angle_units='deg')
-                    # text_glyph.level = 'overlay'
                     _child[0].add_glyph(strati_source, text_glyph)
 
     span_callback = CustomJS(args=dict(source=strati_source, spans=_spans), code=code)

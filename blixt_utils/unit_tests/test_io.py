@@ -50,7 +50,12 @@ files = {
         [os.path.join(test_file_dir, "Petrel_checkshots.ascii"), 'space', 15,
          ['X', 'TWT picked', 'Well'],
          [0, 3, 5],
-         ['m', 'ms', '']]
+         ['m', 'ms', '']],
+    'checkshot_file2':
+        [os.path.join(test_file_dir, "Well A checkshot.txt"), 'space', 4,
+         ['md', 'owt'],
+         [0, 1],
+         ['m', 'ms']]
 }
 
 

@@ -428,6 +428,7 @@ def read_general_ascii_GENERAL(
 
     :param filename:
     :param separator:
+        'space', 'tab', ',', ';', ...
     :param data_begins_on_row:
         int
         Pythonic row number (starting at 0) of the first line of data
@@ -882,6 +883,7 @@ def project_files_info(filename, sheet_name):
                     "general ascii" for various formats
             :keyword 'separator':
                 string
+                'space', 'tab', ',', ';', ...
                 String used as separator between data values
                 if equal to 'space', any number of spaces is considered a separator
                 Not necessary if format is different from 'general ascii'
@@ -2027,7 +2029,7 @@ def write_las(filename, wh, lh, data, overwrite=False):
         out += '{0: <20}'.format(key.upper())
     out += '\n'
 
-    # start writing data
+    # start writ11ing data
     for i, md in enumerate(data['depth'].values):
         out += '{0: <20}'.format(md)
         for key in list(data.keys()):
@@ -2539,9 +2541,17 @@ def my_float(string):
 
 
 def _split(_string, _separator):
-    if _separator == 'space':
+    """
+
+    :param _string:
+    :param _separator:
+        str
+        'space', 'tab', ',', ';', ...
+    :return:
+    """
+    if 'space' in _separator.lower():
         _this_list = _string.split()
-    elif _separator == 'tab':
+    elif 'tab' in _separator.lower():
         _this_list = _string.split('\t')
     else:
         _this_list = _string.split(_separator)
