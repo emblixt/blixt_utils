@@ -34,6 +34,7 @@ tools = [
 
 test_data_length = 1000
 
+
 class SeismicTraces:
     """
     Simple class that contains N number of seismic traces,
