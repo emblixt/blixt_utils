@@ -1,5 +1,4 @@
 import matplotlib as mpl
-from copy import deepcopy
 
 import bokeh.plotting
 import numpy as np
@@ -18,10 +17,9 @@ from bokeh.io import output_file
 from bokeh.layouts import gridplot
 from bokeh.transform import transform
 
-import bruges
-
 # from blixt_utils.misc.templates import necessary_keys
 from blixt_rp.core.core import Template
+from blixt_rp.core.seismic import SeismicTraces
 
 tools = [
     PanTool(),
@@ -33,72 +31,6 @@ tools = [
 ]
 
 test_data_length = 1000
-
-
-class SeismicTraces:
-    """
-    Simple class that contains N number of seismic traces,
-    Each trace must have the same depth/time dimension
-
-    """
-    def __init__(self,
-                 x: np.ndarray | None = None,
-                 y: np.ndarray | None = None,
-                 traces: np.ndarray | None = None,
-                 source: ColumnDataSource | None = None,
-                 trace_type: Literal['avo', 'eei', 'index'] | None = None
-                 ):
-        """
-
-        :param x:
-            np.ndarray of length M with values in the x direction
-            Contains incidence angles when trace_type is 'avo',
-            Chi angles when trace_type is 'eei', and index when trace_type is 'index'
-        :param y:
-            Numpy array of depth/time values, length N
-        :param traces:
-            np.ndarray of size MxN, contains M number of seismic traces, each of length N
-        :param source:
-            ColumnDataSource({'value': [_seismic.traces.T]})
-            Must have the key 'value'
-        :param trace_type:
-            string that describes the type of seismic variation in the x direction
-            'avo': Incidence angle (AVO)
-            'eei': Chi angle (Extended Elastic Impedance)
-            'index': index along an Inline, Xline or arbitrary seismic line
-        """
-        if x is None:
-            x = np.linspace(0,35, 128)
-        self._x = x
-        if y is None:
-            y = np.linspace(500, 3500, test_data_length)
-        self._y = y
-        if trace_type is None:
-            trace_type = 'avo'
-        self._trace_type = trace_type
-
-        self.source = source
-
-        if traces is None and source is None:
-            _synts = SyntheticTraces(trace_length=test_data_length, n_traces=len(x))
-            traces = _synts.get_traces(simulate_avo=self._trace_type=='avo')
-        self._traces = traces
-
-    @property
-    def x(self):
-        return self._x
-
-    @property
-    def y(self):
-        return self._y
-
-    @property
-    def trace_type(self):
-        return self._trace_type
-
-    @property
-    def traces(self):
-        return self._traces
 
 
 class LogPlotter:
@@ -378,58 +310,6 @@ class Line:
             _max = self.max
         return _min, _max
 
-
-class SyntheticTraces:
-    def __init__(self,
-                 trace_length:int | None = None,
-                 dt: float | None = None,
-                 n_traces: int | None = None,
-                 n_reflectors: int | None = None,
-                 seed: int | None = None):
-
-        if trace_length is None:
-            trace_length = 3000
-        if dt is None:
-            dt = 0.001  # seconds
-        if n_traces is None:
-            n_traces = 128
-        if n_reflectors is None:
-            n_reflectors = 3
-
-        x = np.linspace(0, n_traces - 1, n_traces)
-        y = np.linspace(0, trace_length - 1, trace_length)
-        traces = np.zeros((n_traces, trace_length))
-
-        self.trace_length = trace_length
-        self.dt = dt
-        self.n_traces = n_traces
-        self.seed = seed
-        self.n_reflectors = n_reflectors
-        self.rng = np.random.default_rng(self.seed)
-
-        self.w_length = 0.082  # Ricker wavelength in seconds
-        self.f0 = 25.  # Hz
-
-        self.traces = traces
-        self.wavelet = None
-
-    def get_traces(self, simulate_avo=False) -> np.ndarray:
-        idx_refl = self.rng.integers(100, self.trace_length, self.n_reflectors)
-        refl = np.zeros(self.trace_length)
-        refl[idx_refl] = 2 * self.rng.random(self.n_reflectors) - 1
-
-        # Convolve reflectivity model with a Ricker wavelet '''
-        this_wavelet = bruges.filters.wavelets.ricker(self.w_length, self.dt, self.f0)
-        self.wavelet = this_wavelet.amplitude
-        this_trace = np.convolve(refl, self.wavelet, mode='same')
-        for i in range(self.traces.shape[0]):
-            if simulate_avo:
-                _refl = deepcopy(refl)
-                _refl[idx_refl[1]] = _refl[idx_refl[1]] * i*2/(self.traces.shape[0] - 1)
-                this_trace=  np.convolve(_refl, self.wavelet, mode='same')
-            self.traces[i,:] = this_trace
-
-        return self.traces
 
 def create_column_figure(_column: LogColumn,
                          _w: Span | None,
@@ -773,36 +653,3 @@ def add_strat_table(_p: bokeh.plotting.figure,
         index_width=60)
 
 
-def seismic_color_map(min_val=-1, max_val=1, n=256, symmetric=True) -> bokeh.models.mappers.LinearColorMapper:
-    # Construct cmap dictionary
-    c_dict = {'red': ((0, 0.6314, 0.6314),
-                     (0.33, 0, 0),
-                     (0.4, 0.302, 0.302),
-                     (0.5, 0.8, 0.8),
-                     (0.6, 0.3804, 0.3804),
-                     (0.667, 0.749, 0.749),
-                     (1, 1, 1)),
-             'green': ((0, 1, 1),
-                       (0.33, 0, 0),
-                       (0.4, 0.302, 0.302),
-                       (0.5, 0.8, 0.8),
-                       (0.6, 0.2706, 0.2706),
-                       (0.667, 0, 0),
-                       (1, 1, 1)),
-             'blue': ((0, 1, 1),
-                      (0.33, 0.749, 0.749),
-                      (0.4, 0.302, 0.302),
-                      (0.5, 0.8, 0.8),
-                      (0.6, 0, 0),
-                      (0.667, 0, 0),
-                      (1, 0, 0))}
-
-    if symmetric:
-        if np.sign(min_val) != np.sign(max_val):
-            max_magnitude = np.max([np.abs(min_val), np.abs(max_val)])
-            min_val = np.sign(min_val) * max_magnitude
-            max_val = np.sign(max_val) * max_magnitude
-
-    cmap = mpl.colors.LinearSegmentedColormap('Seismic', c_dict).reversed()
-    _colors = cmap(np.linspace(0, 1, n))
-    return LinearColorMapper(palette=[mpl.colors.to_hex(_c) for _c in _colors], low=min_val, high=max_val)

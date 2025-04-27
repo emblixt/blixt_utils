@@ -15,9 +15,10 @@ project_dir = str(os.path.dirname(__file__).replace('blixt_utils\\blixt_utils\\u
 sys.path.append(os.path.join(project_dir, 'blixt_rp'))
 sys.path.append(os.path.join(project_dir, 'blixt_utils'))
 
-from blixt_utils.plotting.log_plotter import LogPlotter, LogColumn, Line, seismic_color_map, SeismicTraces
+from blixt_utils.plotting.log_plotter import LogPlotter, LogColumn, Line, seismic_color_map
 import blixt_utils.plotting.log_plotter as bupl
 from blixt_rp.core.core import Template
+from blixt_rp.core.seismic import SeismicTraces
 
 # output_file('C:\\Users\marte\Documents\plot.html')
 output_file('C:\\Users\emb\Documents\plot.html')
@@ -92,22 +93,6 @@ class SetUp(unittest.TestCase):
         show(column(p, data_table))
         # show(p)
         self.assertTrue(True)
-
-    def test_synthetic_traces(self):
-        from matplotlib import pyplot as plt
-        fig, ax = plt.subplots()
-        _synts = bupl.SyntheticTraces()
-        synts = _synts.get_traces(simulate_avo=True)
-        print(synts.shape)
-        # ax.imshow(synts.T)
-        # plt.show()
-        source = ColumnDataSource({'value': [synts.T]})
-        # print(np.min(synts))
-        _seismic_color_map = bupl.seismic_color_map(min_val=np.min(synts), max_val=np.max(synts))
-
-        p = figure()
-        p.image('value', source=source,
-                color_mapper=_seismic_color_map, dh=synts.shape[1], dw=synts.shape[0], x=0, y=0)
 
     def test_python_interaction(self):
         # This script is called  by the main.py script under blixt_projects/bokeh_testing
