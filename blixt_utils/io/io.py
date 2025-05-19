@@ -644,15 +644,17 @@ def project_wells_new(filename, working_dir, sheet_name=None):
                 for key in list(table.keys()):
                     if (key.lower() == 'filename') or (key.lower() == 'use this file'):
                         continue
+                    elif key.lower() == 'data begins on line':
+                        temp_dict[key] = int(table[key][i]) - 1  # from non-pythonic to pythonic counting!
                     elif ((key.lower() == 'given well name') or (key.lower() == 'note') or
-                          (key.lower() == 'data begins on line') or (key.lower() == 'separator')):
+                           (key.lower() == 'separator')):
                         if isinstance(table[key][i], str):
                             if key.lower() == 'given well name':
                                 value = fix_well_name(table[key][i])
                             else:
                                 value = table[key][i]
                             temp_dict[key] = value
-                        elif isinstance(table[key][i], float):
+                        elif isinstance(table[key][i], float) or isinstance(table[key][i], int):
                             try:
                                 temp_dict[key] = int(table[key][i])
                             except ValueError:
@@ -669,7 +671,8 @@ def project_wells_new(filename, working_dir, sheet_name=None):
                             log_dict['test'] = val
                             temp_dict['logs'][segs[0]] = key
                             temp_dict['columns'][segs[0]] = int(segs[1]) - 1  # from non-pythonic to pythonic counting!
-                            temp_dict['units'][segs[0]] = segs[2]
+                            # temp_dict['columns'][segs[0]] = int(segs[1])
+                            temp_dict['units'][segs[0]] = segs[2].strip()
                     # temp_dict['logs'] = log_dict
                 # avoid file names which aren't correctly given as strings
                 if not isinstance(table['filename'][i], str):

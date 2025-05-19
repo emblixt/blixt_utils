@@ -15,7 +15,7 @@ project_dir = str(os.path.dirname(__file__).replace('blixt_utils\\blixt_utils\\u
 sys.path.append(os.path.join(project_dir, 'blixt_rp'))
 sys.path.append(os.path.join(project_dir, 'blixt_utils'))
 
-from blixt_utils.plotting.log_plotter import LogPlotter, LogColumn, Line, seismic_color_map
+from blixt_utils.plotting.log_plotter import LogPlotter, LogColumn, Line
 import blixt_utils.plotting.log_plotter as bupl
 from blixt_rp.core.core import Template
 from blixt_rp.core.seismic import SeismicTraces
@@ -91,7 +91,6 @@ class SetUp(unittest.TestCase):
             column_index=1
         )
         show(column(p, data_table))
-        # show(p)
         self.assertTrue(True)
 
     def test_python_interaction(self):

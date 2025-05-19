@@ -12,14 +12,14 @@ from bokeh.models import (Slider, ColorPicker, Range1d, LinearAxis, LogAxis,  Sp
                           CustomJS, CustomJSTransform, LinearColorMapper)
 from bokeh.models import PanTool,WheelZoomTool, ResetTool, SaveTool, CrosshairTool, HoverTool, ColorBar, LogColorMapper
 from bokeh.models import (DataTable, NumberEditor, SelectEditor, StringEditor, StringFormatter,
-                          IntEditor, TableColumn, CheckboxEditor, Rect)
+                          IntEditor, TableColumn, CheckboxEditor, Rect, HTMLTemplateFormatter)
 from bokeh.io import output_file
 from bokeh.layouts import gridplot
 from bokeh.transform import transform
 
 # from blixt_utils.misc.templates import necessary_keys
 from blixt_rp.core.core import Template
-from blixt_rp.core.seismic import SeismicTraces
+from blixt_rp.core.seismic import SeismicTraces, seismic_color_map
 
 tools = [
     PanTool(),
@@ -42,7 +42,8 @@ class LogPlotter:
     def __init__(self,
                  width: int = 300,
                  height: int = 600,
-                 columns: list |None = None
+                 columns: list |None = None,
+                 add_tools: list | None = None
                  ):
         """
 
@@ -57,6 +58,7 @@ class LogPlotter:
         self._width = width
         self._height = height
         self._columns = columns
+        self._add_tools = add_tools
 
 
     @property
@@ -103,6 +105,10 @@ class LogPlotter:
         return int(self.width / n_cols)
 
     def figure(self) -> gridplot:
+        if self._add_tools is not None:
+            my_tools = tools + self._add_tools
+        else:
+            my_tools = tools
         children = []
         _w = Span(dimension="width", line_dash="dashed", line_width=1)
         _h = Span(dimension="height", line_dash="dashed", line_width=0)
@@ -111,7 +117,7 @@ class LogPlotter:
                                       _y_range_flipped=i==0,
                                       _x_axis_visible=len(_column) > 0,
                                       _y_axis_visible=i==0,
-                                      _tools=tools)
+                                      _tools=my_tools)
             children.append(_p)
 
         # Let the y-axis of all columns be controlled by the y-axis of the first column
@@ -467,7 +473,7 @@ def add_seismic_traces(_p: bokeh.plotting.figure,
                      y=np.min(_seismic.y)
                      )
 
-            _p.xaxis.axis_label = _seismic.trace_type
+            _p.xaxis.axis_label = _seismic.title
             # add color bar
             color_bar = ColorBar(color_mapper=_seismic_color_map,
                                  # title='Seismic',
@@ -572,6 +578,18 @@ def add_strat_table(_p: bokeh.plotting.figure,
     line_widths = ['1', '2', '3', '4', '5']
     line_styles = ['solid', 'dashed', 'dotted', 'dotdash', 'dashdot']
 
+    # Try to color the cells of the 'color' column by their value
+    template = """
+            <div style="background:<%= 
+                (function color_from_val(){
+                    return(color)
+                    }()) %>; 
+                color: white"> 
+            <%= value %>
+            </div>
+        """
+    formatter = HTMLTemplateFormatter(template=template)
+
     table_columns = [
         TableColumn(field='visible', title='Show',
                     editor=CheckboxEditor(),
@@ -586,7 +604,8 @@ def add_strat_table(_p: bokeh.plotting.figure,
         TableColumn(field='base', title='Base [m MD]',
                     editor=NumberEditor()),
         TableColumn(field='color', title='Color',
-                    editor=StringEditor()),
+                    editor=StringEditor(),
+                    formatter=formatter),
         TableColumn(field='line_style', title='Line style',
                     editor=SelectEditor(options=line_styles)),
         TableColumn(field='line_width', title='Line width',
