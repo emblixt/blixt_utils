@@ -25,9 +25,9 @@ output_file('C:\\Users\emb\Documents\plot.html')
 
 line1 = Line(x=None, y=None, style=Template(**{'name': "Temp.", 'line_color': "blue", 'line_width': 2}))
 line2 = Line(x=np.random.normal(10., 1., 500), y=np.linspace(1000., 2000., 500),
-             style=Template(**{'name': "D2", 'line_color': "red", 'line_width': 1}))
+             style=Template(name = "D2", line_color = "red", line_width = 1))
 line3 = Line(x=np.random.normal(100., 1., 500), y=np.linspace(1000., 2000., 500),
-             style=Template(**{'name': "D3", 'line_color': "yellow", 'line_width': 2}))
+             style=Template(name = "D3", line_color = "yellow", line_width = 2))
 seismic1 = SeismicTraces()
 
 
