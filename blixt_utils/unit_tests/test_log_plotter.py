@@ -1,12 +1,10 @@
 import unittest
 import numpy as np
 import os, sys
-import inspect
-from bokeh.plotting import column, figure, show, curdoc
+from bokeh.plotting import column, figure, show
 from bokeh.io import output_file
-from bokeh.models import Slider, ColorPicker, Range1d, Span, CustomJS, CheckboxEditor, Text
-from bokeh.models import (ColumnDataSource, DataTable, NumberEditor, SelectEditor, StringEditor, StringFormatter,
-    IntEditor, TableColumn)
+from bokeh.models import Slider
+from bokeh.models import (ColumnDataSource)
 # from html5lib.constants import hexDigits
 
 
@@ -15,8 +13,8 @@ project_dir = str(os.path.dirname(__file__).replace('blixt_utils\\blixt_utils\\u
 sys.path.append(os.path.join(project_dir, 'blixt_rp'))
 sys.path.append(os.path.join(project_dir, 'blixt_utils'))
 
-from blixt_utils.plotting.log_plotter import LogPlotter, LogColumn, Line
-import blixt_utils.plotting.log_plotter as bupl
+from blixt_rp.plotting.log_plotter import LogPlotter, LogColumn, Line
+import blixt_rp.plotting.log_plotter as bupl
 from blixt_rp.core.core import Template
 from blixt_rp.core.seismic import SeismicTraces
 
