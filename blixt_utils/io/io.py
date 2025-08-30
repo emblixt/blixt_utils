@@ -2635,5 +2635,6 @@ def example_parsing_webpage():
         print(row.text)
 
 
-if __name__ == '__main__':
-    example_parsing_webpage()
+
+
+
