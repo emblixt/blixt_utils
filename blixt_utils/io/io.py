@@ -1488,7 +1488,7 @@ def write_regression(filename, reg_params, log_name, well_name, interval_name, r
 
     # test if worksheet contains data
     if ws[2][0].value is None:
-        for j, val in enumerate(['Log name', 'Given well name', 'Type', 'Interval name', 'Date', 'Note',
+        for j, val in enumerate(['Log name', 'Given well name', 'Interval name', 'Type', 'Date', 'Note',
                                  'A', 'B', 'C', 'D', 'E', 'F', 'G']):
             ws.cell(1, j+1).value = val
 
