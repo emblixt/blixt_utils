@@ -2461,6 +2461,7 @@ def interpret_rename_string(rename_string, keep_case=False):
         bool
         If true, the letter case is unchanged.
         Default False, which changes all cases to lower
+
     :return:
         dict or None
     """
