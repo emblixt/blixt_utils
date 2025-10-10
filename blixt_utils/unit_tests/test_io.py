@@ -158,7 +158,8 @@ class IOTestCase(unittest.TestCase):
 
     def test_project_wells_new(self):
         project_table = test_file_dir.replace('test_data', 'excels\\project_table_new.xlsx')
-        result = project_wells_new(project_table, test_file_dir.replace('test_data', ''))
+            # result = project_wells_new(project_table, test_file_dir.replace('test_data', ''))
+        result = project_wells_new(project_table, test_file_dir.replace('test_data', ''), do_rename=True)
         for _key in list(result.keys()):
             print(_key)
             for _i in list(result[_key].keys()):

@@ -535,7 +535,7 @@ def read_general_ascii_GENERAL(
     return data, units
 
 
-def project_wells_new(filename, working_dir, sheet_name=None):
+def project_wells_new(filename, working_dir, sheet_name=None, do_rename=False):
     """
     Returns a dictionary containing the requested wells from the project excel table
     Avoids using the old "Translate log names" column of the project excel table, and uses
@@ -551,12 +551,13 @@ def project_wells_new(filename, working_dir, sheet_name=None):
         str
         Name of the sheet to read well data from.
         Default is 'Well logs', which contains well data from las files only
+    :param do_rename:
+        bool
+        If True the renaming rules are taken into use, and logs are renamed
     :return:
         dict
         dictionary with las file names as keys
     """
-    # TODO
-    # Implement the rename_log function here!
     from blixt_utils.utils import isnan
     from blixt_utils.utils import fix_well_name
     from blixt_utils.utils import print_info
@@ -609,7 +610,10 @@ def project_wells_new(filename, working_dir, sheet_name=None):
                         for log_name in this_list:
                             if '->' in log_name:
                                 translate_to_string += '{}, '.format(log_name)
-                                this_cleaned_list.append(log_name.split('->')[0].lower().strip())
+                                if do_rename:
+                                    this_cleaned_list.append(log_name.split('->')[1].lower().strip())
+                                else:
+                                    this_cleaned_list.append(log_name.split('->')[0].lower().strip())
                             else:
                                 this_cleaned_list.append(log_name.lower())
                         for log_name in this_cleaned_list:
@@ -2560,6 +2564,7 @@ def my_float(string):
         except ValueError:
             return string
 
+
 def rename_log_name(old_name: str, rename_logs: dict | None) -> str:
     """
     Returns the renamed version of old_name using the rules described in rename_log
@@ -2590,6 +2595,7 @@ def rename_log_name(old_name: str, rename_logs: dict | None) -> str:
             if old_name.lower().strip() in [_x.lower().strip() for _x in this_value]:
                 return new_name.lower().strip()
     return old_name
+
 
 def _split(_string, _separator):
     """
