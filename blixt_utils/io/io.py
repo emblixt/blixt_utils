@@ -555,6 +555,8 @@ def project_wells_new(filename, working_dir, sheet_name=None):
         dict
         dictionary with las file names as keys
     """
+    # TODO
+    # Implement the rename_log function here!
     from blixt_utils.utils import isnan
     from blixt_utils.utils import fix_well_name
     from blixt_utils.utils import print_info
