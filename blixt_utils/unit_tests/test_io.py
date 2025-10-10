@@ -12,55 +12,55 @@ test_file_dir = str(os.path.dirname(__file__).replace(
     'blixt_rp\\test_data'))
 
 files = {
-    # 'las_file1':
-    #     [os.path.join(test_file_dir, "L-30.las"), 'space', 53,
-    #      ["DEPTH", "CALD", "CALS", "DEPT", "DRHO", "DT", "GRD", "GRS", "ILD", "ILM", "LL8", "NPHILS", "NPHISS",
-    #       "RHOB", "SP"], None,
-    #      ["FT",  "IN",  "IN", "FT", "G/CC",  "US/F", "GAPI", "GAPI",  "OHMM", "OHMM", "OHMM", "V/V", "V/V",
-    #       "G/CC", "MV"]
-    #      ],
-    # 'petrel_well_tops_file':
-    #     ["C:\\Users\\marte\\Downloads\\Well tops.txt", 'space', 17, None, None ],
-    # 'rokdoc_tops_file':
-    #     [os.path.join(test_file_dir, "RokDocTops.csv"),';', 5,
-    #      4,
-    #      None,
-    #      ['', '', 'm', 'm', 'ms', 'm', 'm', 'm']],
-    # 'another_tops_file':
-    #     [os.path.join(test_file_dir, "strat_litho_wellbore.csv"), ',', 1,
-    #      0,
-    #      None,
-    #      None],
-    # 'well_path_file1':
-    #     ["C:\\Users\\marte\\Downloads\\25_2_6___wellpath.txt", 'space', 1,
-    #      None,
-    #      None,
-    #      None],
-    # 'well_path_file2':
-    #     [os.path.join(test_file_dir, "Well C wellpath.txt"), 'tab', 1,
-    #      0,
-    #      None,
-    #      ['', '', 'm', 'm', 'm', 'm', 'deg', 'deg', 'm', 'm', '']],
+    'las_file1':
+        [os.path.join(test_file_dir, "L-30.las"), 'space', 53,
+         ["DEPTH", "CALD", "CALS", "DEPT", "DRHO", "DT", "GRD", "GRS", "ILD", "ILM", "LL8", "NPHILS", "NPHISS",
+          "RHOB", "SP"], None,
+         ["FT",  "IN",  "IN", "FT", "G/CC",  "US/F", "GAPI", "GAPI",  "OHMM", "OHMM", "OHMM", "V/V", "V/V",
+          "G/CC", "MV"]
+         ],
+    'petrel_well_tops_file':
+        ["C:\\Users\\marte\\Downloads\\Well tops.txt", 'space', 17, None, None ],
+    'rokdoc_tops_file':
+        [os.path.join(test_file_dir, "RokDocTops.csv"),';', 5,
+         4,
+         None,
+         ['', '', 'm', 'm', 'ms', 'm', 'm', 'm']],
+    'another_tops_file':
+        [os.path.join(test_file_dir, "strat_litho_wellbore.csv"), ',', 1,
+         0,
+         None,
+         None],
+    'well_path_file1':
+        ["C:\\Users\\marte\\Downloads\\25_2_6___wellpath.txt", 'space', 1,
+         None,
+         None,
+         None],
+    'well_path_file2':
+        [os.path.join(test_file_dir, "Well C wellpath.txt"), 'tab', 1,
+         0,
+         None,
+         ['', '', 'm', 'm', 'm', 'm', 'deg', 'deg', 'm', 'm', '']],
     'well_path_file3':
         ["S:\\Well\\UTM31_North_Sea_All\\Q-33\\33_9-17\\33_9_17___wellpath.txt", 'tab', 9,
          ['TVD', 'MD', 'INC'],
          [4, 1, 3],
          ['m', 'm', 'deg']],
-    # 'checkshot_file':
-    #     [os.path.join(test_file_dir, "Petrel_checkshots.ascii"), 'space', 15,
-    #      ['X', 'Y', 'Z', 'TWT picked', 'MD', 'Well', 'Average velocity', 'Interval velocity', 'TWT'],
-    #      None,
-    #      ['m', 'm', 'm', 'ms', 'm', '', 'm/s', 'm/s', 'ms']],
-    # 'checkshot_file_again':
-    #     [os.path.join(test_file_dir, "Petrel_checkshots.ascii"), 'space', 15,
-    #      ['X', 'TWT picked', 'Well'],
-    #      [0, 3, 5],
-    #      ['m', 'ms', '']],
-    # 'checkshot_file2':
-    #     [os.path.join(test_file_dir, "Well A checkshot.txt"), 'space', 4,
-    #      ['md', 'owt'],
-    #      [0, 1],
-    #      ['m', 'ms']]
+    'checkshot_file':
+        [os.path.join(test_file_dir, "Petrel_checkshots.ascii"), 'space', 15,
+         ['X', 'Y', 'Z', 'TWT picked', 'MD', 'Well', 'Average velocity', 'Interval velocity', 'TWT'],
+         None,
+         ['m', 'm', 'm', 'ms', 'm', '', 'm/s', 'm/s', 'ms']],
+    'checkshot_file_again':
+        [os.path.join(test_file_dir, "Petrel_checkshots.ascii"), 'space', 15,
+         ['X', 'TWT picked', 'Well'],
+         [0, 3, 5],
+         ['m', 'ms', '']],
+    'checkshot_file2':
+        [os.path.join(test_file_dir, "Well A checkshot.txt"), 'space', 4,
+         ['md', 'owt'],
+         [0, 1],
+         ['m', 'ms']]
 }
 
 
@@ -124,6 +124,37 @@ class IOTestCase(unittest.TestCase):
 
         self.assertTrue(len(names) == len(units))
         self.assertIsInstance(data_row, int)
+
+    def test_rename_log_name(self):
+        from blixt_utils.io.io import rename_log_name
+        rename_logs = {'phie': ['CPI_PHIE', 'PHIE_smooth'],
+                       'vcl': 'VCLAY',
+                       'gr': ['GR_LFP']}
+        for old_name in ['CPI_PHIE', 'PHIE_smooth', 'vclay', 'VCLAY', 'GR_LFP', 'XXX']:
+            print('{} -> {}'.format(old_name, rename_log_name(old_name, rename_logs)))
+        print('{} -> {}'.format('TEST', rename_log_name('TEST', None)))
+
+
+    def test_well_reader(self):
+        from blixt_utils.io.io import well_reader
+        file_name = files['las_file1'][0]
+        with open(file_name, "r", encoding='UTF8') as f:
+            lines = f.readlines()
+        # null_val, generated_keys, well_dict = well_reader(lines, file_format='las', rename_logs={'den': ['rhob']})
+        # null_val, generated_keys, well_dict = well_reader(lines, file_format='las', rename_logs={'den': ['XXX']})
+        # null_val, generated_keys, well_dict = well_reader(lines, file_format='las', rename_logs={'DEN': ['RHOB']})
+        # dept and depth are already among the logs, so the operation below will remove one of the depth logs
+        null_val, generated_keys, well_dict = well_reader(lines, file_format='las', rename_logs={'dept': ['depth']})
+        print(null_val)
+        print(generated_keys)
+        for _key in list(well_dict.keys()):
+            print('Key: ', _key)
+            if isinstance(well_dict[_key], str):
+                print(' - ', well_dict[_key])
+            elif isinstance(well_dict[_key], dict):
+                print(' - ', list(well_dict[_key].keys()))
+            print(' - X -')
+
 
     def test_project_wells_new(self):
         project_table = test_file_dir.replace('test_data', 'excels\\project_table_new.xlsx')

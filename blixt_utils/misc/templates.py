@@ -112,10 +112,17 @@ def get_from_template(template_dict: dict):
 
     key_list = list(template_dict.keys())
 
-    if 'full_name' in key_list:
-        label += template_dict['full_name']
+    try:
+        if 'full_name' in key_list:
+            label += template_dict['full_name']
+    except TypeError:
+        if 'name' in key_list:
+            label += template_dict['name']
+
     if 'unit' in key_list:
         label += ' [{}]'.format(template_dict['unit'])
+    elif 'units' in key_list:
+        label += ' [{}]'.format(template_dict['units'])
     if 'min' in key_list:
         try:
             limits[0] = float(template_dict['min'])

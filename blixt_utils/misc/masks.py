@@ -52,7 +52,11 @@ def create_mask(data, operator, limits):
     if isinstance(data, pint.Quantity) or isinstance(data, Depth):
         data_unit = data.units
         data = data.magnitude
-        limits = [_x.to(data_unit).magnitude for _x in limits]
+        if data_unit == 'fract':
+            # TODO This is a work around, which I hopefully can avoid in the future
+            limits = [_x.magnitude for _x in limits]
+        else:
+            limits = [_x.to(data_unit).magnitude for _x in limits]
 
 
     logging.debug(
