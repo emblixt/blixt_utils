@@ -202,6 +202,29 @@ def print_info(
         to_logger=True,
         raiser: str | None = None
 ):
+    """
+    Prints a string to standard output when verbose is True, and to logger, and can raise errors
+
+    :param text:
+        str
+        The text that should be printed
+    :param level:
+        str
+        'info', 'warning', 'debug', 'error', 'exception'
+    :param logger:
+        Logger
+        Logger that handel the information. See arrange_logging
+    :param verbose:
+        bool
+        Default True
+    :param to_logger:
+        bool
+        Default True
+    :param raiser:
+        str
+        If provided, the type of error that should be raised
+    :return:
+    """
     if verbose:
         print('{}: {}'.format(level.upper(), text))
     if to_logger:
