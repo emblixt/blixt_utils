@@ -197,7 +197,8 @@ def mask_string(cutoffs, wi_name):
 def print_info(
         text: str,
         level: str,
-        logger: logging.Logger | None,
+        # logger: logging.Logger | None,
+        logger: logging.Logger,
         verbose=True,
         to_logger=True,
         raiser: str | None = None
