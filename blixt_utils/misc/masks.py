@@ -9,6 +9,7 @@ import logging
 
 import pint
 
+
 logger = logging.getLogger(__name__)
 
 def create_mask(data, operator, limits):
@@ -37,8 +38,11 @@ def create_mask(data, operator, limits):
         numpy boolean mask array
         True values indicate that this data point fulfills the operator with the given limits
     """
+    # TODO Force data and limits to be pint Quantities
     from blixt_rp.core.log_curve_new import Depth
     from blixt_utils.utils import print_info
+    if not isinstance(limits, pint.Quantity) and isinstance(data, pint.Quantity):
+        print_info('Preferably, both data and limits should be given as pint.Quantity', 'warning', logger)
     if  not (isinstance(data, np.ndarray) or isinstance(data, pint.Quantity) or isinstance(data, Depth)):
         print_info('Only numpy ndarray, or pint quantities are allowed as data input, not {}'.format(type(data)),'error', logger, raiser='IOError')
 
@@ -46,10 +50,10 @@ def create_mask(data, operator, limits):
     if not isinstance(limits, list) or isinstance(limits, pint.Quantity):
         limits = [limits]
 
-    # If data is a pint.Quantity, the limits must also be pint.Quantities
-    # We try to convert everything to the units of the data, and continue doing the calculation on
-    # converted data without units
     if isinstance(data, pint.Quantity) or isinstance(data, Depth):
+        # If data is a pint.Quantity, the limits must also be pint.Quantities
+        # We try to convert everything to the units of the data, and continue doing the calculation on
+        # converted data without units
         data_unit = data.units
         data = data.magnitude
         if data_unit == 'fract':
@@ -57,6 +61,14 @@ def create_mask(data, operator, limits):
             limits = [_x.magnitude for _x in limits]
         else:
             limits = [_x.to(data_unit).magnitude for _x in limits]
+    else:
+        # But what if the data is not a pint.Quantity? How do we deal with that?
+        print('XXX2 ')
+        # TODO Need to strengthen this. Maybe require that both data and limits are pint.Quantities?
+
+        print_info('Is data a pint.Quantity? {}, is limits a pint.Quantity? {}.\n BE CAREFUL'.format(
+            isinstance(data, pint.Quantity), isinstance(limits, pint.Quantity),
+        ), 'warning', logger)
 
 
     logging.debug(
