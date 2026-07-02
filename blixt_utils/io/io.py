@@ -1006,14 +1006,23 @@ def read_sums_and_averages(filename, header=20):
     unique_layers = unique_names(table, 'Name', well_names=False)
     answer = {}
     for layer in unique_layers:
+        # We want to be able to comment-out specific lines of the excel file
+        # Try to avoid lines that contain the character '#' first in the Name
+        if layer[0] == '#':
+            continue
         answer[layer] = {}
 
     for key in list(table.keys()):
         if key == 'Name':
             continue
         for i, value in enumerate(table[key]):
+            # We want to be able to comment-out specific lines of the excel file
+            # Try to avoid lines that contain the character '#' first in the Name
+            if table['Name'][i][0] == '#':
+                continue
             answer[table['Name'][i]][key] = value
-
+    # for lf in list(answer.keys()):
+    #     print(lf, len(list(answer[lf].keys())), list(answer[lf].keys()))
     return answer
 
 
@@ -2518,6 +2527,7 @@ def interpret_cutoffs_string(cutoffs_string):
     :return:
         dict or None
     """
+    # TODO This can be *REMOVED* because the new CutoffRule and Cutoffs can be generated directly from a string
     from blixt_utils.utils import print_info
     if len(cutoffs_string) < 3:
         return None
