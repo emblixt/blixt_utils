@@ -63,12 +63,11 @@ def create_mask(data, operator, limits):
             limits = [_x.to(data_unit).magnitude for _x in limits]
     else:
         # But what if the data is not a pint.Quantity? How do we deal with that?
-        print('XXX2 ')
         # TODO Need to strengthen this. Maybe require that both data and limits are pint.Quantities?
-
-        print_info('Is data a pint.Quantity? {}, is limits a pint.Quantity? {}.\n BE CAREFUL'.format(
-            isinstance(data, pint.Quantity), isinstance(limits, pint.Quantity),
-        ), 'warning', logger)
+        # print_info('Is data a pint.Quantity? {}, is limits a pint.Quantity? {}.\n BE CAREFUL'.format(
+        #     isinstance(data, pint.Quantity), isinstance(limits, pint.Quantity),
+        # ), 'warning', logger)
+        pass
 
 
     logging.debug(
