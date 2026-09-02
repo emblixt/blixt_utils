@@ -528,10 +528,6 @@ def read_general_ascii_GENERAL(
                     # except IndexError:
                     #     print('XXX2 ', j, len(_line), names[j], list(data.keys()))
 
-    # TODO
-    # Create a 1D xarray.DataArray for each column, with name and unit
-    # Create a common xarray.Dataset for all columns
-
     return data, units
 
 
@@ -1565,76 +1561,83 @@ def read_regressions(filename, sheet_name=None):
 
 def read_petrel_points(filename):
     """
-    Reads a Petrel points (with attributes) file, and returns a dictionary with a "header" and a "data" key.
-    The value belonging to the "data" key is a dictionary with each column of data as a key: value pair
-    Args:
-        filename:
+    As suggested by CoPilot
 
-    Returns:
-        dict
+    :param filename:
+    :return:
     """
-    result = {'data': {}}
-    keys = []
-    key_types = []
-    no_strings = False
-    data_section = False
-    header_section = False
-    i = 0
-    header_txt = 'Original filename: {}\n'.format(filename)
+    from pathlib import Path
+    import shlex
+    result = {
+        "header": [],
+        "data": {}
+    }
 
-    if filename is None:
-        return None
+    with open(filename, "r", encoding="utf-8") as f:
+        lines = f.readlines()
 
-    xx = ''
-    with open(filename, 'r') as f:
-        for line in f.readlines():
-            if line[0] == '#':
-                header_txt += '{}'.format(line)
-            if line[:7] == 'BEGIN H':
-                header_section = True
-                continue
-            elif line[:5] == 'END H':
-                header_section = False
-                data_section = True
-                if 'STRING' not in key_types:  # No strings in the data, allows for faster reading
-                    no_strings = True
-                # add a container for each column of data
-                for _x in keys:
-                    result['data'][_x] = []
-                continue
-            if header_section:
-                _line = line.split(',')
-                if len(_line) == 1:
-                    keys.append(_line[0].replace('\n', ''))
-                    key_types.append('FLOAT')
-                elif len(_line) == 2:
-                    keys.append(_line[1].replace('\n', ''))
-                    key_types.append(_line[0].replace('\n', ''))
-            if data_section:
-                if no_strings:
-                    _line = line.split()
-                    for _i, _key in enumerate(keys):
-                        result['data'][_key].append(float(_line[_i]))
-                else:
-                    # Strings are enclosed in " ", and can contain spaces, so we cant split the line using spaces
-                    # Instead we need to first identify all strings that are enclosed in " "
-                    match = re.findall("\".*?\"", line)
-                    # TODO Now we assume that the number of elements in match is the same as the number of string elements
-                    # Replace all the matches above, with any string (without spaces)
-                    for _match in match:
-                        line = line.replace(_match, 'XXX')
-                    _line = line.split()
-                    string_counter = 0
-                    for _i, _key, _key_type in zip(range(len(keys)), keys, key_types):
-                        if 'STRING' in _key_type:
-                            result['data'][_key].append(match[string_counter].replace('"', ''))
-                            string_counter += 1
-                        else:
-                            result['data'][_key].append(float(_line[_i]))
+    # Finn header
+    begin_idx = None
+    end_idx = None
 
-    result['header'] = header_txt
+    for i, line in enumerate(lines):
+        if line.strip() == "BEGIN HEADER":
+            begin_idx = i
+        elif line.strip() == "END HEADER":
+            end_idx = i
+            break
+
+    if begin_idx is None or end_idx is None:
+        raise ValueError("Could not find BEGIN HEADER / END HEADER")
+
+    header = [line.strip() for line in lines[begin_idx + 1:end_idx]]
+    result["header"] = header
+
+    # The header contains the name of each column, and in some cases, also the data type, eg. "BOOL, Boolean"
+    # We will strip away the data types and only keep the names
+    header_names = [x.split(',')[0] for x in header[:]]
+    header_types = [x.split(',')[1].strip() if ',' in x else 'Float' for x in header]
+
+    for col in header_names:
+        result["data"][col] = []
+
+    # Les data
+    for line in lines[end_idx + 1:]:
+        line = line.strip()
+
+        if not line:
+            continue
+
+        values = shlex.split(line)
+
+        if len(values) != len(header_names):
+            raise ValueError(
+                f"Column mismatch.\n"
+                f"Expected {len(header)} columns:\n{header}\n"
+                f"Got {len(values)} values:\n{values}"
+            )
+
+        for col, value, type in zip(header_names, values, header_types):
+
+            # Konverter til passende datatype
+            if value.upper() == "TRUE":
+                value = True
+
+            elif value.upper() == "FALSE":
+                value = False
+
+            else:
+                try:
+                    if "." in value:
+                        value = float(value)
+                    else:
+                        value = int(value)
+                except ValueError:
+                    pass
+
+            result["data"][col].append(value)
+
     return result
-
 
 def read_petrel_checkshots(filename, only_these_wells=None):
     # TODO
