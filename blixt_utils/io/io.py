@@ -1014,6 +1014,7 @@ def read_sums_and_averages(filename, header=20):
         for i, value in enumerate(table[key]):
             # We want to be able to comment-out specific lines of the excel file
             # Try to avoid lines that contain the character '#' first in the Name
+            # TODO: Make it skip empty rows
             if table['Name'][i][0] == '#':
                 continue
             answer[table['Name'][i]][key] = value
@@ -2609,6 +2610,60 @@ def rename_log_name(old_name: str, rename_logs: dict | None) -> str:
                 return new_name.lower().strip()
     return old_name
 
+def reorder_columns(
+        column_order: list,
+        input_file: str,
+        output_file: str,
+        n_header_lines: int
+):
+    """
+    CoPilot generated
+    Cegal and Avary doesn't put the Depth data in the first column of a las file, and that creates problem when
+    other software wants to read the .las file
+
+    :param column_order:
+        list
+        List of the new order of the columns
+        E.g. old_order = [1,2,3,4]
+        with column_order = [4,1,2,3]
+        you move the fourth column to the first position
+    :param input_file:
+    :param output_file:
+    :param n_header_lines:
+        int
+        Number of lines in the header
+    :return:
+    """
+    # Reorder columns in an ASCII file
+
+    with open(input_file, "r") as fin, open(output_file, "w") as fout:
+
+        # Copy header verbatim
+        for _ in range(n_header_lines):
+            line = fin.readline()
+            if not line:
+                break
+            fout.write(line)
+
+        for line_number, line in enumerate(fin, start=n_header_lines+1):
+            if not line.strip():
+                fout.write(line)
+                continue
+
+            cols = line.split()
+
+            if len(cols) < max(column_order):
+                print(
+                    f"Line {line_number}: "
+                    f"expected at least {max(column_order)} columns, "
+                    f"found {len(cols)}. Skipping."
+                )
+                continue
+
+            reordered = [cols[i - 1] for i in column_order]
+            fout.write(" ".join(reordered) + "\n")
+
+    print(f"Output written to {output_file}")
 
 def _split(_string, _separator):
     """

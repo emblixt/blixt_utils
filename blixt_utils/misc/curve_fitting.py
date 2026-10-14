@@ -195,11 +195,12 @@ def calculate_depth_trend(
 
         # Test if there are infinite values in input data, which needs to be masked out
         if np.any(np.isinf(y[_mask])):
-            inf_mask = np.isnan(y)
+            inf_mask = np.isinf(y)
             _mask = msks.combine_masks([~inf_mask, _mask])
 
         if down_weight_outliers:
-            weights = 1. - np.sqrt((y[_mask] - np.median(y[_mask])) ** 2)
+            # weights = 1. - np.sqrt((y[_mask] - np.nanmedian(y[_mask])) ** 2)
+            weights = outlier_weights(y, _mask)
             weights[weights < 0] = 0.
 
         try:
@@ -233,7 +234,7 @@ def calculate_depth_trend(
                     z,
                     '><',
                     [discrete_intervals[i - 1], discrete_intervals[i]])
-                           #  [discrete_intervals[i - 1], discrete_intervals[i] - 1])
+                #  [discrete_intervals[i - 1], discrete_intervals[i] - 1])
 
             combined_mask = msks.combine_masks([mask, this_depth_mask])
             res = do_the_fit(combined_mask)
@@ -267,6 +268,210 @@ def calculate_depth_trend(
         ax.grid(True)
 
     return results
+
+def calculate_blocking(
+        y: np.ndarray,
+        z: np.ndarray,
+        mask: np.ndarray | None = None,
+        discrete_intervals: list | None = None,
+        down_weight_outliers: bool = False,
+        ax=None,
+        verbose: bool = False,
+        title: str | None = None,
+        xlabel: str | None = None,
+        ylabel: str | None = None
+) -> list:
+    """
+    "Blocks" a well log into a set of discrete values (mean, median & std) for each interval within the discrete_intervals
+    :param y:
+        data to calculate the blocks for
+    :param z:
+        depth data
+    :param mask:
+        boolean numpy array of length N
+        A False value indicates that the data is masked out
+    :param discrete_intervals:
+        list of depth values at which the trend function are allowed discrete jumps
+        Typically the depth of the boundaries between two intervals (formations) in a well.
+    :param down_weight_outliers:
+        If True, a weighting is calculated to minimize the impact of data far away from the median.
+    :param ax:
+    :param verbose:
+    :param title:
+    :param xlabel:
+    :param ylabel:
+
+    :return:
+        list of dictionaries with 'mean', 'median', 'std' as keys. One dictionary per discrete interval
+        e.g.
+        [ {'mean': XXX, 'median': XXX, 'std': XXX}, ... ]
+    """
+    from blixt_utils.utils import print_info
+    if mask is None:
+        mask = np.array(np.ones(len(y)), dtype=bool)  # All True values -> all data is included
+    verbosity_level = 0
+    results = []
+
+    if verbose:
+        verbosity_level = 0
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(8, 10))
+        ax.scatter(y, z, c='grey')
+        if discrete_intervals is not None:
+            for _depth in discrete_intervals:
+                ax.axhline(_depth, 0, 1, ls='--')
+
+    if discrete_intervals is not None:
+        for i in range(len(discrete_intervals) + 1):  # always one more section than boundaries between them
+            if i == 0:  # first section
+                this_depth_mask = msks.create_mask(z, '<', discrete_intervals[i])
+                z0 = np.nanmin(z) - 1.
+                z1 = discrete_intervals[i]
+            elif len(discrete_intervals) == i:  # last section
+                this_depth_mask = msks.create_mask(z, '>=', discrete_intervals[-1])
+                z0 = discrete_intervals[-1]
+                z1 = np.nanmax(z) + 1.
+            else:  # all middle sections
+                this_depth_mask = msks.create_mask(
+                    z,
+                    '><',
+                    [discrete_intervals[i - 1], discrete_intervals[i]])
+                           #  [discrete_intervals[i - 1], discrete_intervals[i] - 1])
+                z0 = discrete_intervals[i-1]
+                z1 = discrete_intervals[i]
+
+            res = calculate_one_block(y[mask], z[mask], z0, z1, down_weight_outliers, verbose)
+            results.append(res)
+
+            if verbose:
+                this_depth = np.linspace(
+                    z[this_depth_mask][0],
+                    z[this_depth_mask][-1], 10)
+                ax.plot(y[this_depth_mask], z[this_depth_mask])
+                ax.plot(np.ones(len(this_depth)) * res['median'], this_depth, c='b')
+    else:
+        res = calculate_one_block(y, z, np.nanmin(z)-1, np.nanmax(z) + 1, down_weight_outliers, verbose)
+        results.append(res)
+        if verbose:
+            this_depth = np.linspace(np.nanmin(z), np.nanmax(z), 10)
+            ax.scatter(y[mask], z[mask])
+            ax.plot(np.ones(len(this_depth)) * res['median'], this_depth, c='b')
+
+    if verbose:
+        if title is None:
+            title_txt = 'Original data + blocking'
+            ax.set_title(title_txt)
+        else:
+            ax.set_title(title)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.grid(True)
+
+    return results
+
+
+def calculate_one_block(
+        y: np.ndarray,
+        z: np.ndarray,
+        z0: float,
+        z1: float,
+        down_weight_outliers: bool,
+        verbose: bool
+):
+    """
+    Calculates the mean, median, std, ... of the parameter y within z0 & z1 of the independent variable z (depth)
+
+    :param y:
+    :param z:
+    :param z0:
+    :param z1:
+    :param down_weight_outliers
+    :param verbose:
+    :return:
+        A dictionary with keys: 'mean', 'median', 'std', ...
+    """
+    from blixt_utils.utils import print_info
+    weights = None
+    down_weight_mask = None
+
+    if verbose:
+        print('Calculating one blocked value for z between {} and {} (z covers: {}-{})'.format(
+            z0, z1, np.nanmin(z), np.nanmax(z)
+        ))
+    # Create mask for the requested interval
+    _mask = msks.create_mask( z, '><', [z0, z1])
+
+    # Test if there are NaN values in input data, which needs to be masked out
+    if np.any(np.isnan(y[_mask])):
+        nan_mask = np.isnan(y)
+        _mask = msks.combine_masks([~nan_mask, _mask])
+
+    # Test if there are infinite values in input data, which needs to be masked out
+    if np.any(np.isinf(y[_mask])):
+        inf_mask = np.isinf(y)
+        _mask = msks.combine_masks([~inf_mask, _mask])
+
+    if down_weight_outliers:
+        down_weight_mask = np.array(np.ones(len(y)), dtype=bool)  # All True values -> all data is included
+        # weights = 1. - np.sqrt((y - np.nanmedian(y)) ** 2)
+        weights = outlier_weights(y)
+        down_weight_mask[weights < 0] = False
+        _mask = msks.combine_masks([down_weight_mask, _mask])
+
+    try:
+        _res = dict(
+            min=np.nanmin(y[_mask]),
+            max=np.nanmax(y[_mask]),
+            mean=np.nanmean(y[_mask]),
+            median=np.nanmedian(y[_mask]),
+            std=np.nanstd(y[_mask])
+        )
+
+        if verbose:
+            info_txt = '  * Success:\n    mean: {:.2}, median: {:.2}, std: {:.2}, min: {:.2}, max: {:.2}'.format(
+                _res['mean'], _res['median'], _res['std'], _res['min'], _res['max'])
+
+            print_info(info_txt, 'info', logger, verbose )
+
+    except ValueError as error:
+        _res = dict(
+            min=None,
+            max=None,
+            mean=None,
+            median=None,
+            std=None
+        )
+        warn_txt = 'Blocked values could not calculated, because {}'.format(error)
+        print_info(warn_txt, 'warning', logger)
+        print(error)
+        pass
+
+    return _res
+
+def outlier_weights(y: np.ndarray, mask: np.ndarray | None = None, method: str | None = None) -> np.ndarray:
+    """
+    Tries to identify outliers.
+    Returns a np.ndarray where values below your preferred threshold (typically 0) are considered as outliers in y
+    e.g.
+    > weights = outlier_weights(y, mask)
+    > weights[weights < 0] = 0
+
+    :param y:
+    :param mask:
+    :param method:
+    :return:
+    """
+    if method is None:
+        # TODO: Maybe this method removes to much data?? Try using the std
+        if mask is not None:
+            weights = 1. - np.sqrt((y[mask] - np.nanmedian(y[mask])) ** 2)
+        else:
+            weights = 1. - np.sqrt((y - np.nanmedian(y)) ** 2)
+    else:
+        weights = np.ones(len(y))
+
+    return weights
+
 
 
 def play_with_data_fit():
