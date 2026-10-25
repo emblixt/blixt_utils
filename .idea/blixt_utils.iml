@@ -15,5 +15,6 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="blixt_rp" />
     <orderEntry type="module" module-name="blixt_projects" />
+    <orderEntry type="module" module-name="blixt_geo_py" />
   </component>
 </module>
